@@ -535,7 +535,7 @@ function openPromoBanner() {
   
   content.innerHTML = `
     <button class="modal-close" id="close-promo-modal">&times;</button>
-    <h2 style="margin-bottom: 2.5rem; font-size: 1.8rem;">🚀 서버 홍보하기</h2>
+    <h2 style="margin-bottom: 2.5rem; font-size: 1.8rem;">� 서버 등록하기</h2>
     <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 1.05rem;">
       당신의 프리미엄 커뮤니티를 RoFolder에 등록하고 더 많은 멤버를 확보하세요!
     </p>
@@ -577,8 +577,8 @@ function openPromoBanner() {
         <input type="text" id="promo-contact" class="form-input" placeholder="example@email.com 또는 Discord ID" required>
       </div>
       <div style="display: flex; gap: 1rem;">
-        <button type="submit" class="submit-button" style="flex: 1;">📤 홍보 신청</button>
-        <button type="button" id="cancel-promo" class="detail-button" style="flex: 1; background: #6b7280; color: white;">취소</button>
+        <button type="submit" class="submit-button" style="flex: 1;">✅ 등록 신청</button>
+        <button type="button" id="cancel-promo" class="submit-button" style="flex: 1; background: #6b7280; color: white;">취소</button>
       </div>
     </form>
   `;
