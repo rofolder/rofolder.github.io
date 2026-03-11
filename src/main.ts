@@ -965,6 +965,18 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
   const container = document.getElementById('admin-servers-container')!;
   const filteredServers = servers.filter(s => s.status === status);
   
+  // Approved 탭일 때 JSON 내보내기 버튼 추가
+  let headerHTML = '';
+  if (status === 'approved' && filteredServers.length > 0) {
+    headerHTML = `
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <button id="export-servers-json-btn" class="submit-button" style="flex: 1; padding: 0.5rem;">
+          📥 JSON 내보내기 (servers.json에 복사)
+        </button>
+      </div>
+    `;
+  }
+  
   if (filteredServers.length === 0) {
     container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
       ${status === 'pending' ? '대기 중인 서버가' : status === 'approved' ? '승인된 서버가' : '거절된 서버가'} 없습니다.
@@ -972,7 +984,7 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
     return;
   }
 
-  container.innerHTML = filteredServers.map(server => `
+  container.innerHTML = headerHTML + filteredServers.map(server => `
     <div class="server-card glass" style="margin-bottom: 1.5rem;">
       <div class="server-header">
         <img src="${escapeHtml(server.icon)}" class="server-icon" alt="${escapeHtml(server.name)}" style="width: 80px; height: 80px;">
@@ -1051,6 +1063,33 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
       updateServerStatus(id, 'pending');
     });
   });
+
+  // JSON 내보내기 버튼 핸들러
+  const exportBtn = document.getElementById('export-servers-json-btn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      const approvedServers = servers.filter(s => s.status === 'approved');
+      const jsonData = {
+        servers: approvedServers
+      };
+      const jsonString = JSON.stringify(jsonData, null, 2);
+      
+      // 클립보드에 복사
+      navigator.clipboard.writeText(jsonString).then(() => {
+        alert('✅ JSON이 클립보드에 복사되었습니다!\n\npublic/servers.json에 붙여넣기 → 커밋해주세요.');
+      }).catch(() => {
+        // 클립보드 복사 실패 시 다운로드
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'servers.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        alert('✅ servers.json이 다운로드되었습니다!\n\npublic/servers.json에 내용을 붙여넣으세요.');
+      });
+    });
+  }
 }
 
 // 인사이트 렌더링 (클릭/추천 통계)
@@ -1395,15 +1434,37 @@ function updateServerStatus(id: number, newStatus: 'pending' | 'approved' | 'rej
   if (newStatus === 'pending') {
     delete server.approvedAt;
     delete server.rejectionReason;
+  } else if (newStatus === 'approved') {
+    server.approvedAt = Date.now();
   }
   
   saveServers();
+  
+  // 승인된 경우 servers.json 업데이트 (자동 커밋용)
+  if (newStatus === 'approved') {
+    exportApprovedServersToJSON();
+  }
   
   // 관리자 대시보드 새로고침
   const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'pending';
   renderAdminServersByStatus(currentTab);
   
   alert('✅ 서버 상태가 변경되었습니다.');
+}
+
+// Approved 서버들을 JSON 형식으로 내보내기 (DevTools용)
+function exportApprovedServersToJSON() {
+  const approvedServers = servers.filter(s => s.status === 'approved');
+  const jsonData = {
+    servers: approvedServers
+  };
+  
+  // 콘솔에 출력 (DevTools에서 복사할 수 있도록)
+  console.log('📋 다음을 servers.json으로 저장하세요:');
+  console.log(JSON.stringify(jsonData, null, 2));
+  
+  // localStorage에도 임시 저장
+  localStorage.setItem('exported_servers_json', JSON.stringify(jsonData, null, 2));
 }
 
 // 관리자 통계 조회
