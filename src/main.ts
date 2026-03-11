@@ -541,6 +541,15 @@ function openPromoBanner() {
     </p>
     <form id="promo-form" class="register-form">
       <div class="form-group">
+        <label>서버/커뮤니티 아이콘 (선택)</label>
+        <div style="display: flex; gap: 1rem;">
+          <div class="image-preview-container">
+            <img id="promo-preview" src="https://api.dicebear.com/7.x/identicon/svg?seed=new" alt="미리보기">
+          </div>
+          <input type="file" id="promo-icon-upload" accept="image/*" class="form-input" style="flex: 1;">
+        </div>
+      </div>
+      <div class="form-group">
         <label>서버/커뮤니티 이름 *</label>
         <input type="text" id="promo-name" class="form-input" placeholder="예: 풀스택 개발자 커뮤니티" required>
       </div>
@@ -562,15 +571,6 @@ function openPromoBanner() {
       <div class="form-group">
         <label>디스코드 초대 링크 *</label>
         <input type="url" id="promo-link" class="form-input" placeholder="https://discord.gg/..." required>
-      </div>
-      <div class="form-group">
-        <label>서버/커뮤니티 아이콘 (선택)</label>
-        <div style="display: flex; gap: 1rem;">
-          <div class="image-preview-container">
-            <img id="promo-preview" src="https://api.dicebear.com/7.x/identicon/svg?seed=new" alt="미리보기">
-          </div>
-          <input type="file" id="promo-icon-upload" accept="image/*" class="form-input" style="flex: 1;">
-        </div>
       </div>
       <div class="form-group">
         <label>문의처 (이메일 또는 디스코드 ID)</label>
