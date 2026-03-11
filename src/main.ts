@@ -554,15 +554,15 @@ function openPromoBanner() {
         <input type="text" id="promo-name" class="form-input" placeholder="예: 풀스택 개발자 커뮤니티" required>
       </div>
       <div class="form-group">
-        <label>카테고리 선택 *</label>
+        <label>카테고리 선택 * (중복선택 가능)</label>
         <div id="promo-category-chips" class="category-chips">
-          ${config.serverTags.map((tag, idx) => `
-            <button type="button" class="chip${idx === 0 ? ' active' : ''}" data-value="${tag.value}">
+          ${config.serverTags.map(tag => `
+            <button type="button" class="chip" data-value="${tag.value}">
               ${tag.emoji} ${tag.label}
             </button>
           `).join('')}
         </div>
-        <input type="hidden" id="promo-category" value="${config.serverTags[0].value}">
+        <input type="hidden" id="promo-category" value="">
       </div>
       <div class="form-group">
         <label>서버 설명 *</label>
@@ -598,15 +598,23 @@ function openPromoBanner() {
     }
   };
 
-  // 카테고리 칩 선택
+  // 카테고리 칩 선택 (중복선택 가능)
   const chips = document.querySelectorAll('#promo-category-chips .chip');
   const catInput = document.getElementById('promo-category') as HTMLInputElement;
+  
+  const updateCategoryInput = () => {
+    const selected = Array.from(chips)
+      .filter(c => c.classList.contains('active'))
+      .map(c => (c as HTMLButtonElement).dataset.value)
+      .join(',');
+    catInput.value = selected;
+  };
+  
   chips.forEach(chip => {
     chip.addEventListener('click', (e) => {
       e.preventDefault();
-      chips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      catInput.value = (chip as HTMLButtonElement).dataset.value!;
+      chip.classList.toggle('active');
+      updateCategoryInput();
     });
   });
 
@@ -620,6 +628,9 @@ function openPromoBanner() {
     const linkInput = (document.getElementById('promo-link') as HTMLInputElement).value.trim();
     const contactInput = (document.getElementById('promo-contact') as HTMLInputElement).value.trim();
 
+    // 선택된 카테고리 배열
+    const selectedCategories = catInput.split(',').filter(c => c.length > 0);
+    
     // 입력 검증
     const validation = validateServerData({
       name: nameInput,
@@ -629,6 +640,11 @@ function openPromoBanner() {
 
     if (!validation.valid) {
       alert('❌ 입력 오류:\n' + validation.errors.join('\n'));
+      return;
+    }
+
+    if (selectedCategories.length === 0) {
+      alert('❌ 카테고리를 최소 1개 이상 선택해주세요.');
       return;
     }
 
@@ -648,9 +664,9 @@ function openPromoBanner() {
       id: Date.now(),
       name: nameInput,
       description: descInput,
-      category: catInput,
+      category: selectedCategories[0], // 첫 카테고리를 기본값으로
       icon: preview.src && !preview.src.includes('identicon') ? preview.src : 'https://api.dicebear.com/7.x/identicon/svg?seed=' + nameInput,
-      tags: ['신규'],
+      tags: ['신규', ...selectedCategories], // 선택된 모든 카테고리를 tags에 추가
       inviteLink: linkInput,
       status: 'pending',
       createdAt: Date.now()
@@ -670,7 +686,7 @@ function openPromoBanner() {
             description: `**${sanitizeDiscordText(nameInput)}** 커뮤니티의 홍보 신청이 접수되었습니다.`,
             color: 0x6366f1,
             fields: [
-              { name: '📂 카테고리', value: catInput, inline: true },
+              { name: '📂 카테고리', value: selectedCategories.join(', '), inline: true },
               { name: '📞 문의처', value: escapeHtml(contactInput), inline: true },
               { name: '🔗 초대 링크', value: `[링크 이동](${linkInput})`, inline: true },
               { name: '📝 설명', value: sanitizeDiscordText(descInput) }
