@@ -588,12 +588,27 @@ function openPromoBanner() {
   document.getElementById('cancel-promo')!.onclick = () => modal.classList.add('hidden');
 
   const form = document.getElementById('promo-form') as HTMLFormElement;
+  // 이미지를 Base64로 변환하는 함수
+  const convertImageToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const iconInput = document.getElementById('promo-icon-upload') as HTMLInputElement;
   const preview = document.getElementById('promo-preview') as HTMLImageElement;
+
+  // 선택된 아이콘 파일 저장
+  let selectedIconFile: File | null = null;
 
   // 아이콘 미리보기
   iconInput.onchange = () => {
     if (iconInput.files && iconInput.files[0]) {
+      selectedIconFile = iconInput.files[0];
       preview.src = URL.createObjectURL(iconInput.files[0]);
     }
   };
@@ -619,7 +634,7 @@ function openPromoBanner() {
   });
 
   // 폼 제출
-  form.onsubmit = (e) => {
+  form.onsubmit = async (e) => {
     e.preventDefault();
     
     const nameInput = (document.getElementById('promo-name') as HTMLInputElement).value.trim();
@@ -659,13 +674,25 @@ function openPromoBanner() {
       return;
     }
 
+    // 아이콘 처리: 파일이 있으면 Base64로 변환, 없으면 기본값
+    let iconData = 'https://api.dicebear.com/7.x/identicon/svg?seed=' + nameInput;
+    if (selectedIconFile) {
+      try {
+        iconData = await convertImageToBase64(selectedIconFile);
+      } catch (err) {
+        console.error('이미지 변환 실패:', err);
+        alert('⚠️ 이미지 처리 중 오류가 발생했습니다.');
+        return;
+      }
+    }
+
     // 새 서버로 등록 (pending 상태)
     const newServer: DiscordServer = {
       id: Date.now(),
       name: nameInput,
       description: descInput,
       category: selectedCategories[0], // 첫 카테고리를 기본값으로
-      icon: preview.src && !preview.src.includes('identicon') ? preview.src : 'https://api.dicebear.com/7.x/identicon/svg?seed=' + nameInput,
+      icon: iconData,
       tags: ['신규', ...selectedCategories], // 선택된 모든 카테고리를 tags에 추가
       inviteLink: linkInput,
       status: 'pending',
@@ -675,30 +702,42 @@ function openPromoBanner() {
     servers.unshift(newServer);
     saveServers();
 
-    // Webhook 발송
+    // Webhook 발송 (성공 여부 확인)
+    let webhookSuccess = false;
     if (config.webhookUrl && config.webhookUrl.startsWith('https://discord.com')) {
-      fetch(config.webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          embeds: [{
-            title: '🚀 새로운 홍보 신청',
-            description: `**${sanitizeDiscordText(nameInput)}** 커뮤니티의 홍보 신청이 접수되었습니다.`,
-            color: 0x6366f1,
-            fields: [
-              { name: '📂 카테고리', value: selectedCategories.join(', '), inline: true },
-              { name: '📞 문의처', value: escapeHtml(contactInput), inline: true },
-              { name: '🔗 초대 링크', value: `[링크 이동](${linkInput})`, inline: true },
-              { name: '📝 설명', value: sanitizeDiscordText(descInput) }
-            ],
-            footer: { text: 'RoFolder Promo System' },
-            timestamp: new Date().toISOString()
-          }]
-        })
-      }).catch(err => console.error('Webhook 발송 실패:', err));
+      try {
+        const response = await fetch(config.webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeds: [{
+              title: '🚀 새로운 홍보 신청',
+              description: `**${sanitizeDiscordText(nameInput)}** 커뮤니티의 홍보 신청이 접수되었습니다.`,
+              color: 0x6366f1,
+              fields: [
+                { name: '📂 카테고리', value: selectedCategories.join(', '), inline: true },
+                { name: '📞 문의처', value: escapeHtml(contactInput), inline: true },
+                { name: '🔗 초대 링크', value: `[링크 이동](${linkInput})`, inline: true },
+                { name: '📝 설명', value: sanitizeDiscordText(descInput) }
+              ],
+              footer: { text: 'RoFolder Promo System' },
+              timestamp: new Date().toISOString()
+            }]
+          })
+        });
+        webhookSuccess = response.ok;
+        if (!response.ok) {
+          console.error('Webhook 발송 실패:', response.status);
+        }
+      } catch (err) {
+        console.error('Webhook 발송 오류:', err);
+      }
     }
 
-    alert('✅ 홍보 신청이 완료되었습니다!\n관리자 검토 후 승인하겠습니다.');
+    const successMsg = webhookSuccess 
+      ? '✅ 홍보 신청이 완료되었습니다!\n관리자 검토 후 승인하겠습니다.'
+      : '✅ 신청이 저장되었습니다.\n(Discord 알림 발송에 실패했습니다. 관리자에게 따로 연락해주세요.)';
+    alert(successMsg);
     modal.classList.add('hidden');
     applyFilters();
   }
