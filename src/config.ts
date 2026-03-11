@@ -87,5 +87,5 @@ export const config = {
   twitterUrl: import.meta.env.VITE_TWITTER_URL || 'https://twitter.com/rofolder',
   
   // 관리자 비밀번호
-  adminPassword: import.meta.env.VITE_ADMIN_PASSWORD || 'RoFolder2026'
+  adminPassword: import.meta.env.VITE_ADMIN_PASSWORD
 };

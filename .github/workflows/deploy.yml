@@ -36,7 +36,13 @@ jobs:
       - name: 🏗️ Build
         run: npm run build
         env:
-          VITE_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VITE_WEBHOOK_URL: ${{ secrets.VITE_WEBHOOK_URL }}
+          VITE_ADMIN_WEBHOOK_URL: ${{ secrets.VITE_ADMIN_WEBHOOK_URL }}
+          VITE_CONTACT_EMAIL: ${{ secrets.VITE_CONTACT_EMAIL }}
+          VITE_DISCORD_COMMUNITY_URL: ${{ secrets.VITE_DISCORD_COMMUNITY_URL }}
+          VITE_DISCORD_FORUM_URL: ${{ secrets.VITE_DISCORD_FORUM_URL }}
+          VITE_TWITTER_URL: ${{ secrets.VITE_TWITTER_URL }}
+          VITE_ADMIN_PASSWORD: ${{ secrets.VITE_ADMIN_PASSWORD }}
 
       - name: 📄 Upload artifact
         uses: actions/upload-pages-artifact@v3
