@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="/src/style.css">
+  <title>로폴더 (Rofolder) - 프리미엄 디스코드 서버 커뮤니티</title>
+</head>
+
+<body>
+    <div class="custom-cursor"></div>
+    <div class="cursor-follower"></div>
+    
+    <div id="app"></div>
+
+    <!-- 모달 시스템 -->
+    <div id="modal-container" class="modal-overlay hidden">
+      <div id="modal-content" class="modal-box glass">
+        <!-- 동적으로 내용이 채워짐 -->
+      </div>
+    </div>
+
+    <!-- 상세 모달 컨테이너 -->
+    <div id="detail-modal-container" class="modal-overlay hidden">
+      <div id="detail-modal-content" class="modal-box glass">
+        <!-- 상세 모달 내용이 동적으로 채워짐 -->
+      </div>
+    </div>
+
+    <!-- 등록 모달 컨테이너 -->
+    <div id="register-modal-container" class="modal-overlay hidden">
+      <div id="register-modal-content" class="modal-box glass">
+        <!-- 등록 모달 내용이 동적으로 채워짐 -->
+      </div>
+    </div>
+
+    <!-- 관리자 대시보드 (비밀) -->
+    <div id="admin-modal-container" class="modal-overlay hidden">
+      <div id="admin-modal-content" class="modal-box glass admin-dashboard">
+        <!-- 관리자 대시보드 내용이 동적으로 채워짐 -->
+      </div>
+    </div>
+
+    <!-- 문의 모달 컨테이너 -->
+    <div id="inquiry-modal-container" class="modal-overlay hidden">
+      <div id="inquiry-modal-content" class="modal-box glass">
+        <!-- 문의 모달 내용이 동적으로 채워짐 -->
+      </div>
+    </div>
+
+    <!-- 푸터 컨테이너 -->
+    <footer id="footer-container">
+      <!-- 푸터 내용이 동적으로 채워짐 -->
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

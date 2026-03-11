@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="gradientBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- 배경 -->
+  <rect width="200" height="200" fill="#0d0d0d"/>
+  
+  <!-- 중앙 원 -->
+  <circle cx="100" cy="100" r="85" fill="none" stroke="url(#gradientBg)" stroke-width="8" opacity="0.3"/>
+  
+  <!-- 내부 글래스 효과 -->
+  <rect x="30" y="30" width="140" height="140" rx="20" fill="rgba(99, 102, 241, 0.1)" 
+        stroke="url(#gradientBg)" stroke-width="2" backdrop-filter="blur(10px)"/>
+  
+  <!-- 주요 텍스트 "Ro" -->
+  <text x="100" y="120" font-family="Arial, sans-serif" font-size="80" font-weight="bold" 
+        fill="url(#gradientBg)" text-anchor="middle" filter="url(#glow)">Ro</text>
+  
+  <!-- 부제 "Folder" (작은 텍스트) -->
+  <text x="100" y="150" font-family="Arial, sans-serif" font-size="18" font-weight="500" 
+        fill="#f8fafc" text-anchor="middle" opacity="0.8">FOLDER</text>
+  
+  <!-- 장식 요소 (좌측) -->
+  <circle cx="50" cy="80" r="3" fill="#6366f1" opacity="0.6"/>
+  <circle cx="50" cy="120" r="3" fill="#8b5cf6" opacity="0.6"/>
+  
+  <!-- 장식 요소 (우측) -->
+  <circle cx="150" cy="80" r="3" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="150" cy="120" r="3" fill="#6366f1" opacity="0.6"/>
+  
+  <!-- 상단 밝은 라인 -->
+  <line x1="70" y1="50" x2="130" y2="50" stroke="url(#gradientBg)" stroke-width="2" opacity="0.5"/>
+</svg>
