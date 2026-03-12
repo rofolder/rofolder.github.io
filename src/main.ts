@@ -39,7 +39,7 @@ const JSON_DATA_URL = '/servers.json';
 
 async function loadServersFromJSON(): Promise<DiscordServer[]> {
   try {
-    const response = await fetch(JSON_DATA_URL);
+    const response = await fetch(JSON_DATA_URL + '?t=' + Date.now()); // 캐시 무시
     if (!response.ok) {
       return [];
     }
@@ -49,6 +49,60 @@ async function loadServersFromJSON(): Promise<DiscordServer[]> {
     console.log('JSON 파일 로드 불가, 로컬스토리지 사용');
     return [];
   }
+}
+
+// 실시간 갱신: 주기적으로 servers.json 체크
+let pollInterval: number | null = null;
+
+async function startRealTimePolling() {
+  if (pollInterval) return; // 이미 실행 중
+  
+  const pollServersFromJSON = async () => {
+    try {
+      const jsonServers = await loadServersFromJSON();
+      
+      // approved 서버만 체크
+      const newApprovedServers = jsonServers.filter(s => s.status === 'approved');
+      const currentApprovedServers = servers.filter(s => s.status === 'approved');
+      
+      // 새로운 서버가 추가되었는지 확인
+      if (newApprovedServers.length > currentApprovedServers.length) {
+        const newServers = newApprovedServers.filter(
+          ns => !currentApprovedServers.find(cs => cs.id === ns.id)
+        );
+        
+        // 새 서버들을 서버 목록에 추가 (pending/pending 서버는 제거)
+        servers = servers.filter(s => s.status !== 'pending');
+        servers.push(...newServers);
+        saveServers();
+        
+        // UI 갱신
+        currentPage = 1;
+        applyFilters();
+        
+        console.log(`✨ ${newServers.length}개의 새로운 서버가 추가되었습니다!`);
+      }
+    } catch (e) {
+      console.log('실시간 갱신 중 오류:', e);
+    }
+  };
+  
+  // 10초마다 체크
+  pollInterval = setInterval(pollServersFromJSON, 10000) as unknown as number;
+  console.log('✅ 실시간 갱신 시작됨 (10초마다)');
+}
+
+function stopRealTimePolling() {
+  if (pollInterval) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+    console.log('⛔ 실시간 갱신 중지됨');
+  }
+}
+
+// @ts-ignore - 향후 필요시 사용
+function _unused_stopRealTimePolling() {
+  stopRealTimePolling();
 }
 
 async function loadServers(): Promise<DiscordServer[]> {
@@ -215,6 +269,20 @@ function renderFilters() {
 function showQAModal() {
   const modal = registerModal();
   const content = document.getElementById('register-modal-content')!;
+  
+  // Q&A 데이터 로드
+  const qaDataStr = localStorage.getItem('rofolder_qa_v1') || '[]';
+  let qaData: Array<{ id: number; question: string; answer: string; votes: number; createdAt: number }> = [];
+  try {
+    qaData = JSON.parse(qaDataStr);
+  } catch (e) {
+    qaData = [];
+  }
+  
+  // 최근 답변된 Q&A 10개
+  const answeredQA = qaData.filter(q => q.answer && q.answer.length > 0)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 10);
 
   content.innerHTML = `
     <button class="modal-close" id="close-qa-modal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; color: var(--text-primary); cursor: pointer;">&times;</button>
@@ -233,7 +301,7 @@ function showQAModal() {
       </div>
       <div class="glass" style="padding: 1.5rem; border-radius: 1rem;">
         <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">최근 Q&A</h3>
-        <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem;">커뮤니티의 활발한 토론</p>
+        <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem;">답변된 질문 ${answeredQA.length}개</p>
         <button id="show-recent-qa" style="width: 100%; padding: 0.8rem; background: linear-gradient(135deg, #10b981, #34d399); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold;">
           💬 둘러보기
         </button>
@@ -243,17 +311,93 @@ function showQAModal() {
     <div style="margin-bottom: 1.5rem; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">
       <p>📌 욕설, 광고, 부적절한 내용은 삭제될 수 있습니다.</p>
     </div>
+    
+    <div id="qa-content-area" style="display: none;">
+      <!-- 질문 양식 또는 최근 Q&A가 동적으로 표시됨 -->
+    </div>
   `;
 
   modal.classList.remove('hidden');
   document.getElementById('close-qa-modal')!.onclick = () => modal.classList.add('hidden');
   
   // Q&A 버튼 이벤트
-  document.getElementById('show-ask-form')?.addEventListener('click', () => {
-    alert('📝 질문 기능은 곧 오픈될 예정입니다!');
+  const contentArea = document.getElementById('qa-content-area')!;
+  const askBtn = document.getElementById('show-ask-form')!;
+  const recentBtn = document.getElementById('show-recent-qa')!;
+  
+  askBtn.addEventListener('click', () => {
+    contentArea.style.display = 'block';
+    contentArea.innerHTML = `
+      <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 1rem; margin-top: 1.5rem;">
+        <h3 style="margin-top: 0; color: var(--text-primary);">✏️ 질문 입력</h3>
+        <input type="text" id="qa-question" class="form-input" placeholder="궁금한 점을 입력하세요 (예: 서버 활동도는 어떤가요?)" style="margin-bottom: 1rem;">
+        <textarea id="qa-details" class="form-textarea" placeholder="추가 설명 (선택사항)" rows="3" style="margin-bottom: 1rem;"></textarea>
+        <div style="text-align: right;">
+          <button id="submit-question" class="submit-button" style="padding: 0.8rem 1.5rem;">✅ 등록</button>
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('submit-question')!.addEventListener('click', () => {
+      const question = (document.getElementById('qa-question') as HTMLInputElement).value.trim();
+      
+      if (!question || question.length < 5) {
+        alert('❌ 질문은 5자 이상이어야 합니다.');
+        return;
+      }
+      
+      const newQA = {
+        id: Date.now(),
+        question: escapeHtml(question),
+        answer: '',
+        votes: 0,
+        createdAt: Date.now()
+      };
+      
+      qaData.push(newQA);
+      localStorage.setItem('rofolder_qa_v1', JSON.stringify(qaData));
+      
+      alert('✅ 질문이 등록되었습니다!\n관리자가 답변해드리겠습니다.');
+      contentArea.style.display = 'none';
+    });
   });
-  document.getElementById('show-recent-qa')?.addEventListener('click', () => {
-    alert('💬 준비 중인 기능입니다. 곧 만날 수 있습니다!');
+  
+  recentBtn.addEventListener('click', () => {
+    if (answeredQA.length === 0) {
+      contentArea.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">아직 답변된 질문이 없습니다.</p>';
+      contentArea.style.display = 'block';
+      return;
+    }
+    
+    contentArea.style.display = 'block';
+    contentArea.innerHTML = `
+      <div style="margin-top: 1.5rem; max-height: 400px; overflow-y: auto;">
+        ${answeredQA.map(qa => `
+          <div class="glass" style="padding: 1rem; margin-bottom: 1rem; border-radius: 0.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+              <div style="flex: 1;">
+                <p style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-weight: bold;">❓ ${qa.question}</p>
+                <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">✅ ${qa.answer}</p>
+              </div>
+              <button class="vote-btn" data-id="${qa.id}" style="background: none; border: none; color: var(--accent-color); cursor: pointer; font-size: 1.2rem; margin-left: 1rem;">👍 ${qa.votes}</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    
+    // 투표 버튼 이벤트
+    contentArea.querySelectorAll('.vote-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const qaId = parseInt((btn as HTMLElement).dataset.id!);
+        const qa = qaData.find(q => q.id === qaId);
+        if (qa) {
+          qa.votes++;
+          localStorage.setItem('rofolder_qa_v1', JSON.stringify(qaData));
+          (btn as HTMLElement).innerText = `👍 ${qa.votes}`;
+        }
+      });
+    });
   });
 }
 
@@ -920,6 +1064,7 @@ function openAdminDashboard() {
       <button class="admin-tab-btn active" data-tab="pending" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--accent-color, #6366f1); font-weight: bold; cursor: pointer; font-size: 1rem;">⏳ 대기 중</button>
       <button class="admin-tab-btn" data-tab="approved" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">✅ 승인됨</button>
       <button class="admin-tab-btn" data-tab="rejected" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">❌ 거절됨</button>
+      <button class="admin-tab-btn" data-tab="qa" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">💬 Q&A 관리</button>
       <button class="admin-tab-btn" data-tab="insights" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">📊 인사이트</button>
     </div>
 
@@ -949,7 +1094,9 @@ function openAdminDashboard() {
       });
       (btn as HTMLElement).style.color = 'var(--accent-color, #6366f1)';
       const tab = (btn as HTMLButtonElement).dataset.tab!;
-      if (tab === 'insights') {
+      if (tab === 'qa') {
+        renderAdminQA();
+      } else if (tab === 'insights') {
         renderAdminInsights();
       } else {
         renderAdminServersByStatus(tab as 'pending' | 'approved' | 'rejected');
@@ -1090,6 +1237,92 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
       });
     });
   }
+}
+
+// Q&A 관리 렌더링
+function renderAdminQA() {
+  const container = document.getElementById('admin-servers-container')!;
+  const qaDataStr = localStorage.getItem('rofolder_qa_v1') || '[]';
+  let qaData: Array<{ id: number; question: string; answer: string; votes: number; createdAt: number }> = [];
+  try {
+    qaData = JSON.parse(qaDataStr);
+  } catch (e) {
+    qaData = [];
+  }
+  
+  // 답변 안 된 질문 우선
+  const unanswered = qaData.filter(q => !q.answer || q.answer.length === 0).sort((a, b) => b.createdAt - a.createdAt);
+  const answered = qaData.filter(q => q.answer && q.answer.length > 0).sort((a, b) => b.votes - a.votes);
+  
+  container.innerHTML = `
+    <div style="margin-bottom: 2rem;">
+      <h3 style="color: var(--text-primary); margin-bottom: 1rem;">❓ 미답변 질문 (${unanswered.length}개)</h3>
+      ${unanswered.length === 0 ? '<p style="color: var(--text-secondary);">모든 질문이 답변되었습니다!</p>' : ''}
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        ${unanswered.map(qa => `
+          <div class="glass" style="padding: 1.5rem; border-radius: 0.75rem;">
+            <p style="margin: 0 0 1rem 0; color: var(--text-primary); font-weight: bold;">❓ ${qa.question}</p>
+            <div style="display: flex; gap: 1rem;">
+              <input type="text" class="qa-answer-input" data-id="${qa.id}" placeholder="답변을 입력하세요..." style="flex: 1; padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.5rem; color: var(--text-primary);">
+              <button class="submit-qa-btn" data-id="${qa.id}" style="padding: 0.75rem 1.5rem; background: var(--accent-color); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold;">✅ 저장</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    
+    <div>
+      <h3 style="color: var(--text-primary); margin-bottom: 1rem;">✅ 답변된 질문 (${answered.length}개)</h3>
+      <div style="display: flex; flex-direction: column; gap: 1rem; max-height: 400px; overflow-y: auto;">
+        ${answered.length === 0 ? '<p style="color: var(--text-secondary);">아직 답변된 질문이 없습니다.</p>' : ''}
+        ${answered.map(qa => `
+          <div class="glass" style="padding: 1rem; border-radius: 0.75rem;">
+            <p style="margin: 0 0 0.5rem 0; color: var(--text-primary); font-weight: bold;">❓ ${qa.question}</p>
+            <p style="margin: 0 0 0.5rem 0; color: var(--text-secondary);">✅ ${qa.answer}</p>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color: var(--text-secondary); font-size: 0.85rem;">👍 추천 ${qa.votes}회</span>
+              <button class="delete-qa-btn" data-id="${qa.id}" style="background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; font-size: 0.85rem;">🗑️ 삭제</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  
+  // 답변 저장 버튼
+  container.querySelectorAll('.submit-qa-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const qaId = parseInt((btn as HTMLElement).dataset.id!);
+      const input = container.querySelector(`[data-id="${qaId}"]`) as HTMLInputElement;
+      const answer = input.value.trim();
+      
+      if (!answer || answer.length < 3) {
+        alert('❌ 답변은 3자 이상이어야 합니다.');
+        return;
+      }
+      
+      const qa = qaData.find(q => q.id === qaId);
+      if (qa) {
+        qa.answer = escapeHtml(answer);
+        localStorage.setItem('rofolder_qa_v1', JSON.stringify(qaData));
+        alert('✅ 답변이 저장되었습니다!');
+        renderAdminQA();
+      }
+    });
+  });
+  
+  // 질문 삭제 버튼
+  container.querySelectorAll('.delete-qa-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const qaId = parseInt((btn as HTMLElement).dataset.id!);
+      if (confirm('이 질문을 삭제하시겠습니까?')) {
+        qaData = qaData.filter(q => q.id !== qaId);
+        localStorage.setItem('rofolder_qa_v1', JSON.stringify(qaData));
+        alert('✅ 질문이 삭제되었습니다!');
+        renderAdminQA();
+      }
+    });
+  });
 }
 
 // 인사이트 렌더링 (클릭/추천 통계)
@@ -1727,6 +1960,9 @@ async function init() {
   renderFooter();
   setupEventListeners();
   initCursor();
+  
+  // 실시간 갱신 시작
+  startRealTimePolling();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
