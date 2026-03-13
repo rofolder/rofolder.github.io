@@ -1144,8 +1144,14 @@ function openAdminDashboard() {
       <!-- 서버 목록이 동적으로 채워짐 -->
     </div>
 
-    <div style="display: flex; gap: 1rem; margin-top: 3rem;">
-      <button id="admin-logout-btn" class="detail-button" style="flex: 1;">로그아웃</button>
+    <!-- 관리자 전용 푸터 복구 -->
+    <div class="admin-dashboard-footer" style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.1); display: flex; justify-content: space-between; align-items: center;">
+      <div style="color: var(--text-secondary); font-size: 0.85rem;">
+        <span style="color: var(--accent-color);">RoFolder</span> Admin Hub v2.0
+      </div>
+      <div style="display: flex; gap: 1rem;">
+        <button id="admin-logout-btn" class="detail-button" style="padding: 0.5rem 1.5rem; font-size: 0.9rem;">로그아웃</button>
+      </div>
     </div>
   `;
 
