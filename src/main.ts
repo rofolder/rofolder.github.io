@@ -126,9 +126,7 @@ function saveServers() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(servers));
 }
 
-// ========== 추천 시스템 함수들 ==========
-// @ts-ignore
-const RECOMMENDATIONS_KEY = 'user_recommendations_v1';
+// ========== 추천 시스템 관련 상수 및 유저 ID 함수 ==========
 const USER_ID_KEY = 'user_id_v1';
 
 // 고유 사용자 ID 생성/가져오기
@@ -139,6 +137,78 @@ function getUserId(): string {
     localStorage.setItem(USER_ID_KEY, userId);
   }
   return userId;
+}
+
+// ========== 프리미엄 피드백 시스템 ==========
+
+// 커스텀 팝업(Toast) 시스템
+function showToast(message: string, type: 'success' | 'error' | 'info' = 'info', center = false) {
+  let container = document.querySelector('.toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast-message ${type} ${center ? 'center' : ''}`;
+  
+  const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+  toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+  
+  if (center) {
+    document.body.appendChild(toast);
+  } else {
+    container.appendChild(toast);
+  }
+
+  setTimeout(() => {
+    toast.style.animation = center ? 'toastFadeInCenter 0.4s reverse forwards' : 'toastSlideOut 0.5s forwards';
+    setTimeout(() => toast.remove(), 500);
+  }, 3000);
+}
+
+// 기존 alert 대체용 커스텀 대화상자 (confirm용)
+async function showConfirm(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.zIndex = '10001';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    
+    const box = document.createElement('div');
+    box.className = 'modal-box glass liquid-glass';
+    box.style.maxWidth = '400px';
+    box.style.textAlign = 'center';
+    box.style.padding = '2.5rem';
+    box.style.margin = '0 auto';
+    
+    box.innerHTML = `
+      <h3 style="margin-bottom: 2rem; font-size: 1.3rem; line-height: 1.6;">${message.replace('\n', '<br>')}</h3>
+      <div style="display: flex; gap: 1rem; justify-content: center;">
+        <button id="confirm-yes" class="submit-button" style="flex: 1; background: var(--accent-color);">확인</button>
+        <button id="confirm-no" class="submit-button" style="flex: 1; background: #374151;">취소</button>
+      </div>
+    `;
+    
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    
+    box.querySelector('#confirm-yes')!.addEventListener('click', () => { overlay.remove(); resolve(true); });
+    box.querySelector('#confirm-no')!.addEventListener('click', () => { overlay.remove(); resolve(false); });
+  });
+}
+
+// 이미지 파일을 Base64로 변환 (홍보 신청 시 사용)
+export function convertImageToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // 추천 가능 여부 확인 (1일 1회 제한)
@@ -152,7 +222,7 @@ function canRecommend(serverId: number): boolean {
 // 추천 추가
 function addRecommendation(serverId: number) {
   if (!canRecommend(serverId)) {
-    alert('⚠️ 이 서버는 오늘 이미 추천했습니다. 내일 다시 추천할 수 있습니다.');
+    showToast('⚠️ 오늘 이미 추천하신 서버입니다.', 'error');
     return false;
   }
 
@@ -581,7 +651,7 @@ function renderServers() {
                   <span style="border-left: 1px solid var(--text-secondary, rgba(255,255,255,0.1));"></span>
                   <span style="flex: 1; text-align: center; color: var(--text-secondary);">👁️ ${server.clicks || 0}</span>
                 </div>
-                <button class="top-recommend-btn" data-id="${server.id}" style="width: 100%; padding: 0.6rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: all 0.3s ease; text-align: center;">
+                <button class="recommend-icon-btn" data-id="${server.id}" style="width: 100%; padding: 0.6rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: all 0.3s ease; text-align: center;">
                   👍 추천
                 </button>
               </div>
@@ -622,17 +692,18 @@ function renderServers() {
     });
   });
 
-  // Top 10 추천 버튼 이벤트
-  grid.querySelectorAll('.top-recommend-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
-      if (addRecommendation(id)) {
-        alert('✅ 추천이 완료되었습니다! 오늘의 인기 서버 순위가 업데이트됩니다.');
-        (e.target as HTMLButtonElement).disabled = true;
-        (e.target as HTMLButtonElement).style.opacity = '0.5';
-        (e.target as HTMLButtonElement).textContent = '✓ 추천됨';
-        // 서버 리스트 새로고침
-        renderServers();
+  // 카드 추천 버튼 이벤트
+  grid.querySelectorAll('.recommend-icon-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = parseInt((btn as HTMLElement).dataset.id!);
+      
+      const confirmed = await showConfirm('🌟 이 서버를 추천하시겠습니까?\n추천은 1일 1회만 가능합니다.');
+      if (confirmed) {
+        if (addRecommendation(id)) {
+          showToast('추천이 완료되었습니다!', 'success');
+          renderServers();
+        }
       }
     });
   });
@@ -680,7 +751,7 @@ function openPromoBanner() {
   
   content.innerHTML = `
     <button class="modal-close" id="close-promo-modal">&times;</button>
-    <h2 style="margin-bottom: 2.5rem; font-size: 1.8rem;">� 서버 등록하기</h2>
+    <h2 style="margin-bottom: 2.5rem; font-size: 1.8rem;">🚀 서버 등록하기</h2>
     <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 1.05rem;">
       당신의 프리미엄 커뮤니티를 RoFolder에 등록하고 더 많은 멤버를 확보하세요!
     </p>
@@ -1080,10 +1151,13 @@ function openAdminDashboard() {
 
   modal.classList.remove('hidden');
   document.getElementById('close-admin-modal')!.onclick = () => modal.classList.add('hidden');
-  document.getElementById('admin-logout-btn')!.onclick = () => {
-    sessionStorage.removeItem('admin_token');
-    modal.classList.add('hidden');
-    alert('✅ 로그아웃 완료');
+  document.getElementById('admin-logout-btn')!.onclick = async () => {
+    const confirmed = await showConfirm('로그아웃 하시겠습니까?');
+    if (confirmed) {
+      sessionStorage.removeItem('admin_token');
+      modal.classList.add('hidden');
+      showToast('로그아웃 완료', 'success');
+    }
   };
 
   // 탭 전환 로직
@@ -1924,14 +1998,6 @@ async function init() {
   servers = await loadServers();
   filteredServers = [...servers];
   
-  // 진단용 콘솔 로깅
-  console.log('=== 📊 로폴더 데이터 진단 ===');
-  console.log('전체 서버:', servers.length);
-  console.log('- Approved:', servers.filter(s => s.status === 'approved').length);
-  console.log('- Pending:', servers.filter(s => s.status === 'pending').length);
-  console.log('- Rejected:', servers.filter(s => s.status === 'rejected').length);
-  console.log('전체 서버 목록:', servers);
-  
   const appElement = document.getElementById('app')!;
   appElement.innerHTML = `
     <header>
@@ -1948,7 +2014,7 @@ async function init() {
     <main>
       <section class="hero">
         <h1 class="hero-title">당신의 가치를 높이는<br>커뮤니티의 모든 것</h1>
-        <p class="hero-subtitle">가장 세련된 방식으로 디스코드 서버를 탐색하고 홍보하세요. 명품 서버 리스트 로폴더입니다.</p>
+        <p class="hero-subtitle">가장 세련된 방식으로 디스코드 서버를 탐색하고 홍보하세요. 사용자를 위한 서버 목록 로폴더입니다.</p>
         
         <div class="search-container glass">
           <input type="text" id="search-input" class="search-input" placeholder="관심 있는 서버 이름을 입력하세요...">
