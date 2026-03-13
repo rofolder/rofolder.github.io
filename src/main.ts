@@ -1801,7 +1801,7 @@ function renderFooter() {
         
         <div style="border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 1.5rem; text-align: center;">
           <p style="margin: 0; color: var(--text-secondary); font-size: 0.8rem;">
-            &copy; ${currentYear} RoFolder. All rights reserved. | Made with ❤️
+            &copy; ${currentYear} RoFolder. All rights reserved. | Make haro
           </p>
         </div>
       </div>
