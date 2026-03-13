@@ -226,11 +226,9 @@ const registerModal = () => document.querySelector<HTMLDivElement>('#register-mo
 // 필터링 적용 함수
 function applyFilters() {
   filteredServers = servers.filter(s => {
-    // 거절된 서버는 표시하지 않음 (관리자만 볼 수 있음)
-    if (s.status === 'rejected') return false;
-    
-    // Approved와 Pending 서버 모두 표시
-    // (Pending은 "대기 중" 배지로 구분됨)
+    // 승인된 서버만 메인 페이지에 표시
+    // (관리자 대시보드에서는 pending/rejected도 볼 수 있음)
+    if (s.status !== 'approved') return false;
     
     const matchCategory = currentCategory === '전체' || 
                           s.category === currentCategory || 
@@ -563,7 +561,6 @@ function renderServers() {
                 <div style="position: absolute; top: -8px; right: 1rem; background: linear-gradient(135deg, #fa8231, #f97316); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1rem; box-shadow: 0 4px 15px rgba(250, 130, 49, 0.4);">
                   ${idx + 1}
                 </div>
-                ${server.status === 'pending' ? `<div style="position: absolute; top: 0.5rem; left: 0.5rem; background: #fbbf24; color: #1f2937; padding: 0.25rem 0.5rem; border-radius: 999px; font-size: 0.65rem; font-weight: bold;">⏳ 검수 중</div>` : ''}
                 <div style="display: flex; gap: 0.75rem; margin-bottom: 0.8rem;">
                   <img src="${escapeHtml(server.icon)}" alt="${escapeHtml(server.name)}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
                   <div style="flex: 1; min-width: 0;">
@@ -601,8 +598,7 @@ function renderServers() {
   }
 
   grid.innerHTML = carouselHTML + topServersHTML + pagedServers.map(server => `
-    <div class="server-card glass" data-id="${server.id}" style="position: relative;">
-      ${server.status === 'pending' ? `<div style="position: absolute; top: 0.75rem; right: 0.75rem; background: #fbbf24; color: #1f2937; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: bold;">⏳ 검수 중</div>` : ''}
+    <div class="server-card glass" data-id="${server.id}">
       <div class="server-header">
         <img src="${escapeHtml(server.icon)}" class="server-icon loading" alt="${escapeHtml(server.name)}" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'; this.classList.remove('loading');" onload="this.classList.remove('loading');">
         <div class="server-info">
@@ -994,9 +990,9 @@ function openDetailModal(id: number) {
       <p style="font-size: 1.15rem; line-height: 1.8; color: var(--text-primary);">${escapeHtml(server.description)}</p>
     </div>
     <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-      <a href="${escapeHtml(server.inviteLink)}" target="_blank" class="submit-button" style="flex: 1; text-decoration: none; text-align: center; min-width: 150px;">🔗 서버 참가하기</a>
-      <button id="detail-recommend-btn" class="submit-button" style="background: linear-gradient(135deg, #fa8231, #f97316); flex: 1; min-width: 150px;" ${!canRecommend(server.id) ? 'disabled style="opacity: 0.5;"' : ''}>👍 추천하기</button>
-      <button id="detail-close-btn" class="detail-button" style="width: auto; padding: 0 2rem;">닫기</button>
+      <a href="${escapeHtml(server.inviteLink)}" target="_blank" class="submit-button" style="flex: 1; text-decoration: none; text-align: center; min-width: 140px; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px; display: flex; align-items: center; justify-content: center;">🔗 서버 참가하기</a>
+      <button id="detail-recommend-btn" class="submit-button" style="background: linear-gradient(135deg, #fa8231, #f97316); flex: 1; min-width: 140px; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">👍 추천하기</button>
+      <button id="detail-close-btn" class="submit-button" style="flex: 1; min-width: 100px; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px; background: #6b7280;">닫기</button>
     </div>
   `;
 
@@ -1161,15 +1157,15 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
       ` : ''}
       <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
         ${status === 'pending' ? `
-          <button class="submit-button approve-btn" data-id="${server.id}" style="flex: 1; background: #10b981; min-width: 120px;">✅ 승인</button>
-          <button class="detail-button reject-btn" data-id="${server.id}" style="flex: 1; background: #ef4444; color: white; min-width: 120px;">❌ 거절</button>
+          <button class="submit-button approve-btn" data-id="${server.id}" style="flex: 1; min-width: 120px; background: #10b981; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✅ 승인</button>
+          <button class="submit-button reject-btn" data-id="${server.id}" style="flex: 1; min-width: 120px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">❌ 거절</button>
         ` : status === 'approved' ? `
-          <button class="submit-button edit-btn" data-id="${server.id}" style="flex: 1; background: #3b82f6; min-width: 100px;">✏️ 수정</button>
-          <button class="detail-button reject-btn" data-id="${server.id}" style="flex: 1; background: #f59e0b; color: white; min-width: 100px;">⬇️ 거절</button>
-          <button class="detail-button delete-btn" data-id="${server.id}" style="flex: 1; background: #ef4444; color: white; min-width: 100px;">🗑️ 삭제</button>
+          <button class="submit-button edit-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #3b82f6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✏️ 수정</button>
+          <button class="submit-button reject-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #f59e0b; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">⬇️ 거절</button>
+          <button class="submit-button delete-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🗑️ 삭제</button>
         ` : `
-          <button class="submit-button rereview-btn" data-id="${server.id}" style="flex: 1; background: #8b5cf6; min-width: 120px;">🔄 재검토</button>
-          <button class="detail-button delete-btn" data-id="${server.id}" style="flex: 1; background: #ef4444; color: white; min-width: 120px;">🗑️ 삭제</button>
+          <button class="submit-button rereview-btn" data-id="${server.id}" style="flex: 1; min-width: 120px; background: #8b5cf6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🔄 재검토</button>
+          <button class="submit-button delete-btn" data-id="${server.id}" style="flex: 1; min-width: 120px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🗑️ 삭제</button>
         `}
       </div>
     </div>
