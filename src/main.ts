@@ -226,8 +226,11 @@ const registerModal = () => document.querySelector<HTMLDivElement>('#register-mo
 // 필터링 적용 함수
 function applyFilters() {
   filteredServers = servers.filter(s => {
-    // 승인된 서버만 표시
-    if (s.status !== 'approved') return false;
+    // 거절된 서버는 표시하지 않음 (관리자만 볼 수 있음)
+    if (s.status === 'rejected') return false;
+    
+    // Approved와 Pending 서버 모두 표시
+    // (Pending은 "대기 중" 배지로 구분됨)
     
     const matchCategory = currentCategory === '전체' || 
                           s.category === currentCategory || 
@@ -560,6 +563,7 @@ function renderServers() {
                 <div style="position: absolute; top: -8px; right: 1rem; background: linear-gradient(135deg, #fa8231, #f97316); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1rem; box-shadow: 0 4px 15px rgba(250, 130, 49, 0.4);">
                   ${idx + 1}
                 </div>
+                ${server.status === 'pending' ? `<div style="position: absolute; top: 0.5rem; left: 0.5rem; background: #fbbf24; color: #1f2937; padding: 0.25rem 0.5rem; border-radius: 999px; font-size: 0.65rem; font-weight: bold;">⏳ 검수 중</div>` : ''}
                 <div style="display: flex; gap: 0.75rem; margin-bottom: 0.8rem;">
                   <img src="${escapeHtml(server.icon)}" alt="${escapeHtml(server.name)}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
                   <div style="flex: 1; min-width: 0;">
@@ -597,7 +601,8 @@ function renderServers() {
   }
 
   grid.innerHTML = carouselHTML + topServersHTML + pagedServers.map(server => `
-    <div class="server-card glass" data-id="${server.id}">
+    <div class="server-card glass" data-id="${server.id}" style="position: relative;">
+      ${server.status === 'pending' ? `<div style="position: absolute; top: 0.75rem; right: 0.75rem; background: #fbbf24; color: #1f2937; padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: bold;">⏳ 검수 중</div>` : ''}
       <div class="server-header">
         <img src="${escapeHtml(server.icon)}" class="server-icon loading" alt="${escapeHtml(server.name)}" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'; this.classList.remove('loading');" onload="this.classList.remove('loading');">
         <div class="server-info">
@@ -1922,6 +1927,14 @@ async function init() {
   // 서버 데이터 로드
   servers = await loadServers();
   filteredServers = [...servers];
+  
+  // 진단용 콘솔 로깅
+  console.log('=== 📊 로폴더 데이터 진단 ===');
+  console.log('전체 서버:', servers.length);
+  console.log('- Approved:', servers.filter(s => s.status === 'approved').length);
+  console.log('- Pending:', servers.filter(s => s.status === 'pending').length);
+  console.log('- Rejected:', servers.filter(s => s.status === 'rejected').length);
+  console.log('전체 서버 목록:', servers);
   
   const appElement = document.getElementById('app')!;
   appElement.innerHTML = `

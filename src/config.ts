@@ -18,12 +18,12 @@ export const config = {
   bannerCarousel: [
     {
       title: 'RoFolder에 오신 것을 환영합니다',
-      description: '프리미엄 디스코드 커뮤니티를 찾고 계신가요?',
+      description: '새로운 디스코드 커뮤니티를 찾고 계신가요?',
       color: 'linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2))'
     },
     {
       title: '당신의 서버를 홍보하세요',
-      description: 'RoFolder에 등록하고 더 많은 멤버를 모집하세요',
+      description: 'RoFolder에 등록하고 더 많은 인원을 모집하세요',
       color: 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(34, 197, 94, 0.2))'
     },
     {
@@ -41,7 +41,7 @@ export const config = {
   // 홍보 설정
   promoEnabled: true, // 홍보 기능 활성화 여부
   promoTitle: '🎯 RoFolder 팀 홍보하기',
-  promoDescription: '당신의 커뮤니티를 프리미움 서버 리스트에 나타내세요!',
+  promoDescription: '당신의 커뮤니티를 최상단 서버 리스트에 나타내세요!',
   
   // 서버 태그 목록 (사용자가 선택 가능)
   serverTags: [
