@@ -63,6 +63,7 @@ export const config = {
   adminOnlyTags: [
     { emoji: '⭐', label: '인기', value: '인기', color: '#fa8231', bgColor: 'rgba(250, 130, 49, 0.15)' },
     { emoji: '✅', label: '인증됨', value: '인증됨', color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.15)' },
+    { emoji: '🤝', label: '파트너', value: '파트너', color: '#fbbf24', bgColor: 'rgba(251, 191, 36, 0.15)' },
   ],
   
   // 금칙어 목록 (서버 등록 시 필터링)

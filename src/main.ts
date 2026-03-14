@@ -300,6 +300,15 @@ function applyFilters() {
     // (관리자 대시보드에서는 pending/rejected도 볼 수 있음)
     if (s.status !== 'approved') return false;
     
+    // 파트너 전용 로직
+    const isPartner = s.tags.includes('파트너') || s.category === '파트너';
+    if (isPartner && currentCategory !== '파트너') {
+      return false; // 파트너 탭이 아닐 때는 숨김
+    }
+    if (!isPartner && currentCategory === '파트너') {
+      return false; // 파트너 탭에서는 파트너 서버만 보임
+    }
+
     const matchCategory = currentCategory === '전체' || 
                           s.category === currentCategory || 
                           s.tags.includes(currentCategory);
@@ -313,7 +322,7 @@ function applyFilters() {
 
 // 필터 버튼 렌더링
 function renderFilters() {
-  const categories = ['전체', '게임', '커뮤니티', '배포', '친목', '방송', '신규', '인기'];
+  const categories = ['전체', '게임', '커뮤니티', '배포', '친목', '방송', '신규', '인기', '파트너'];
   const filterBar = document.getElementById('filter-bar')!;
   if (!filterBar) return;
   
