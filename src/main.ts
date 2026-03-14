@@ -109,7 +109,19 @@ async function loadServers(): Promise<DiscordServer[]> {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      let parsedServers = JSON.parse(saved);
+      
+      // 사용자 요청: 로폴더 제외 모든 서버 기록 삭제 (1회용 스크립트)
+      if (!localStorage.getItem('wiped_test_servers_v1')) {
+        parsedServers = parsedServers.filter((s: DiscordServer) => 
+          s.name === '로폴더' || s.name === 'RoFolder' || s.name.includes('로폴더')
+        );
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedServers));
+        localStorage.setItem('wiped_test_servers_v1', 'true');
+        console.log('로폴더를 제외한 모든 임시 서버 기록이 로컬 저장소에서 삭제되었습니다.');
+      }
+      
+      return parsedServers;
     } catch (e) {
       console.error('LocalStorage 로드 실패');
     }
