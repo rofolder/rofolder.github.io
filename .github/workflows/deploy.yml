@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
       - main
-
+      
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -17,9 +17,19 @@ jobs:
       pages: write
       id-token: write
 
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:    
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # 배포할 파일이 있는 경로 (기본값은 현재 디렉토리 '.')
+          path: '.'
 
       - name: 🔧 Setup Node.js
         uses: actions/setup-node@v4
