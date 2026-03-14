@@ -959,7 +959,8 @@ function openPromoBanner() {
                 { name: '📂 카테고리', value: selectedCategories.join(', '), inline: true },
                 { name: '📞 문의처', value: escapeHtml(contactInput), inline: true },
                 { name: '🔗 초대 링크', value: `[링크 이동](${linkInput})`, inline: true },
-                { name: '📝 설명', value: sanitizeDiscordText(descInput) }
+                { name: '📝 설명', value: sanitizeDiscordText(descInput) },
+                { name: '🛡️ 관리자 동작', value: `[✅ 승인](${window.location.origin}${window.location.pathname}?action=approve&id=${newServer.id}) | [❌ 거절](${window.location.origin}${window.location.pathname}?action=reject&id=${newServer.id})` }
               ],
               footer: { text: 'RoFolder Promo System' },
               timestamp: new Date().toISOString()
@@ -2269,6 +2270,66 @@ function initCursor() {
   });
 }
 
+
+// 관리자 웹후크 자동 동작 처리
+async function handleAdminAutoAction() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const action = urlParams.get('action');
+  const serverIdStr = urlParams.get('id');
+  
+  if (!action || !serverIdStr) return;
+  
+  const serverId = parseInt(serverIdStr);
+  const server = servers.find(s => s.id === serverId);
+  
+  if (!server) {
+    showToast('해당 서버를 찾을 수 없습니다.', 'error');
+    window.history.replaceState({}, document.title, window.location.pathname);
+    return;
+  }
+  
+  // 관리자 권한 확인 및 요청
+  if (!hasAdminAccess()) {
+    const password = prompt('🔐 관리자 전용 동작입니다. 비밀번호를 입력하세요:', '');
+    if (password === config.adminPassword) {
+      setAdminToken('admin_access_token_' + Date.now());
+      logAdminAccess('자동 동작 로그인');
+    } else {
+      alert('❌ 비밀번호가 틀렸거나 취소되었습니다.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+  }
+  
+  // 동작 수행
+  if (action === 'approve') {
+    if (server.status === 'approved') {
+      showToast('이미 승인된 서버입니다.', 'info');
+    } else {
+      const confirmed = await showConfirm(`"${server.name}" 서버를 승인하시겠습니까?`);
+      if (confirmed) {
+        approveServer(serverId);
+        showToast('서버가 승인되었습니다.', 'success');
+        openAdminDashboard();
+      }
+    }
+  } else if (action === 'reject') {
+    if (server.status === 'rejected') {
+      showToast('이미 거절된 서버입니다.', 'info');
+    } else {
+      const reason = prompt(`"${server.name}" 서버의 거절 사유를 입력하세요:`, '');
+      if (reason) {
+        rejectServer(serverId, reason);
+        showToast('서버가 거절되었습니다.', 'info');
+        openAdminDashboard();
+      }
+    }
+  }
+  
+  // URL 파라미터 제거 (재실행 방지)
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
 // 메인 초기화
 async function init() {
   // 서버 데이터 로드
@@ -2318,6 +2379,9 @@ async function init() {
   
   // 실시간 갱신 시작
   startRealTimePolling();
+  
+  // 관리자 자동 동작 처리
+  await handleAdminAutoAction();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
