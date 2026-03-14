@@ -596,7 +596,7 @@ function renderServers() {
               <div class="carousel-content">
                 <h2 style="font-size: 2.5rem; margin-bottom: 1rem; color: var(--text-primary);">✨ ${banner.title}</h2>
                 <p style="font-size: 1.2rem; color: var(--text-secondary); margin-bottom: 2rem;">${banner.description}</p>
-                <button class="promo-button" id="carousel-promo-btn">🚀 지금 등록하기</button>
+                <button class="promo-button carousel-promo-btn">🚀 지금 등록하기</button>
               </div>
             </div>
           `).join('')}
@@ -719,7 +719,7 @@ function renderServers() {
   // 캐러셀 이벤트
   const prevBtn = grid.querySelector('#carousel-prev');
   const nextBtn = grid.querySelector('#carousel-next');
-  const promoBtnCarousel = grid.querySelector('#carousel-promo-btn');
+  const promoBtnsCarousel = grid.querySelectorAll('.carousel-promo-btn');
   const dots = grid.querySelectorAll('.carousel-dot');
 
   if (prevBtn && nextBtn) {
@@ -737,8 +737,10 @@ function renderServers() {
     setInterval(() => nextSlide(), 5000);
   }
 
-  if (promoBtnCarousel) {
-    promoBtnCarousel.addEventListener('click', openPromoBanner);
+  if (promoBtnsCarousel.length > 0) {
+    promoBtnsCarousel.forEach(btn => {
+      btn.addEventListener('click', openPromoBanner);
+    });
   }
 
   renderPagination();
