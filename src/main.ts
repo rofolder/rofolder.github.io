@@ -1156,10 +1156,11 @@ function openAdminDashboard() {
       </div>
     </div>
 
-    <div style="display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid var(--accent-color, #6366f1);">
+    <div style="display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid var(--accent-color, #6366f1); flex-wrap: wrap;">
       <button class="admin-tab-btn active" data-tab="pending" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--accent-color, #6366f1); font-weight: bold; cursor: pointer; font-size: 1rem;">⏳ 대기 중</button>
       <button class="admin-tab-btn" data-tab="approved" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">✅ 승인됨</button>
       <button class="admin-tab-btn" data-tab="rejected" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">❌ 거절됨</button>
+      <button class="admin-tab-btn" data-tab="all" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">📋 모든 서버</button>
       <button class="admin-tab-btn" data-tab="qa" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">💬 Q&A 관리</button>
       <button class="admin-tab-btn" data-tab="insights" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">📊 인사이트</button>
     </div>
@@ -1203,6 +1204,8 @@ function openAdminDashboard() {
         renderAdminQA();
       } else if (tab === 'insights') {
         renderAdminInsights();
+      } else if (tab === 'all') {
+        renderAllServers();
       } else {
         renderAdminServersByStatus(tab as 'pending' | 'approved' | 'rejected');
       }
@@ -1342,6 +1345,59 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
       });
     });
   }
+}
+
+// 모든 서버 목록 렌더링 (상태 무관)
+function renderAllServers() {
+  const container = document.getElementById('admin-servers-container')!;
+
+  if (servers.length === 0) {
+    container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">등록된 서버가 없습니다.</p>`;
+    return;
+  }
+
+  const statusBadge = (s: DiscordServer) => {
+    if (s.status === 'approved') return `<span style="background: rgba(16,185,129,0.2); color: #10b981; padding: 0.2rem 0.6rem; border-radius: 0.5rem; font-size: 0.8rem;">✅ 승인</span>`;
+    if (s.status === 'pending')  return `<span style="background: rgba(99,102,241,0.2); color: #6366f1; padding: 0.2rem 0.6rem; border-radius: 0.5rem; font-size: 0.8rem;">⏳ 대기</span>`;
+    return `<span style="background: rgba(239,68,68,0.2); color: #ef4444; padding: 0.2rem 0.6rem; border-radius: 0.5rem; font-size: 0.8rem;">❌ 거절</span>`;
+  };
+
+  container.innerHTML = `
+    <div style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">총 ${servers.length}개의 서버</div>
+    ${servers.map(server => `
+      <div class="server-card glass" style="margin-bottom: 1rem; padding: 1.2rem; border-radius: 1rem;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <img src="${escapeHtml(server.icon)}" alt="${escapeHtml(server.name)}" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; flex-wrap: wrap;">
+              <h4 style="margin: 0; font-size: 1rem; color: var(--text-primary);">${escapeHtml(server.name)}</h4>
+              ${statusBadge(server)}
+              <span style="background: rgba(255,255,255,0.07); color: var(--text-secondary); padding: 0.2rem 0.6rem; border-radius: 0.5rem; font-size: 0.8rem;">📂 ${escapeHtml(server.category)}</span>
+            </div>
+            <p style="margin: 0; color: var(--text-secondary); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(server.description)}</p>
+          </div>
+          <button class="all-delete-btn" data-id="${server.id}" style="flex-shrink: 0; background: #ef4444; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: bold; font-size: 0.85rem;">🗑️ 삭제</button>
+        </div>
+      </div>
+    `).join('')}
+  `;
+
+  container.querySelectorAll('.all-delete-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
+      const server = servers.find(s => s.id === id);
+      const confirmed = await showConfirm(`"${server?.name}" 서버를 삭제하시겠습니까?`);
+      if (confirmed) {
+        const idx = servers.findIndex(s => s.id === id);
+        if (idx !== -1) {
+          servers.splice(idx, 1);
+          saveServers();
+          showToast('서버가 삭제되었습니다.', 'success');
+          renderAllServers();
+        }
+      }
+    });
+  });
 }
 
 // Q&A 관리 렌더링
