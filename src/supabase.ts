@@ -1,12 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 import { config } from './config';
 
+// Supabase 설정 유효성 검사
+const isSupabaseConfigured = Boolean(config.supabaseUrl && config.supabaseAnonKey && config.supabaseUrl !== 'https://your-project-id.supabase.co');
+
 // Supabase 클라이언트 초기화
-// URL과 Anon Key가 설정되지 않은 경우 클라이언트는 생성되지만 요청은 실패합니다.
-export const supabase = createClient(
-  config.supabaseUrl,
-  config.supabaseAnonKey
-);
+// 설정이 없으면 null을 반환하여 사이트 전체가 멈추는 것을 방지합니다.
+export const supabase = isSupabaseConfigured 
+  ? createClient(config.supabaseUrl, config.supabaseAnonKey)
+  : null as any; // 타입 호환성을 위해 any 사용
+
+export { isSupabaseConfigured };
 
 // 데이터베이스 테이블 타입 정의 (필요시 상세화)
 export type Tables = {

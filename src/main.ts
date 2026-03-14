@@ -29,7 +29,7 @@ import {
   setAdminToken,
   validateServerData,
 } from './security';
-import { supabase as supabaseClient } from './supabase';
+import { supabase as supabaseClient, isSupabaseConfigured } from './supabase';
 
 // 데이터 관리 (LocalStorage 및 JSON 파일 연동)
 const STORAGE_KEY = 'rofolder_servers_v1';
@@ -53,7 +53,7 @@ async function loadServersFromJSON(): Promise<DiscordServer[]> {
 let serverSubscription: any = null;
 
 async function startRealTimePolling() {
-  if (serverSubscription) return;
+  if (!isSupabaseConfigured || serverSubscription) return;
   
   console.log('📡 Supabase 실시간 동기화 시작...');
   
@@ -75,6 +75,7 @@ async function startRealTimePolling() {
 }
 
 async function loadServersFromDB(): Promise<DiscordServer[]> {
+  if (!isSupabaseConfigured) return [];
   try {
     const { data, error } = await supabaseClient
       .from('servers')
@@ -167,6 +168,7 @@ function saveServersToLocal(data: DiscordServer[]) {
 }
 
 async function syncServerToDB(server: DiscordServer) {
+  if (!isSupabaseConfigured) return;
   try {
     const { error } = await supabaseClient
       .from('servers')
@@ -1458,10 +1460,12 @@ function renderAllServers() {
           saveServers();
           
           // DB 삭제 (또는 status를 deleted로 변경할 수 있으나 여기서는 완전 삭제 처리)
-          supabaseClient.from('servers').delete().eq('id', id).then(({ error }) => {
-            if (error) console.error('DB 삭제 실패:', error);
-            refreshAdminDashboardIfOpen();
-          });
+          if (isSupabaseConfigured) {
+            supabaseClient.from('servers').delete().eq('id', id).then(({ error }: { error: any }) => {
+              if (error) console.error('DB 삭제 실패:', error);
+              refreshAdminDashboardIfOpen();
+            });
+          }
           
           showToast('서버가 삭제되었습니다.', 'success');
           renderAllServers();
@@ -2102,16 +2106,18 @@ async function logAdminAccess(action = '로그인') {
   localStorage.setItem(ADMIN_LOG_KEY, JSON.stringify(localLogs));
 
   // 2. DB 동기화
-  try {
-    await supabaseClient.from('logs').insert({
-      type: 'admin',
-      action: logData.action,
-      user_agent: logData.userAgent,
-      screen: logData.screen,
-      timestamp: new Date(logData.timestamp).toISOString()
-    });
-  } catch (e) {
-    console.error('관리자 로그 DB 저장 실패:', e);
+  if (isSupabaseConfigured) {
+    try {
+      await supabaseClient.from('logs').insert({
+        type: 'admin',
+        action: logData.action,
+        user_agent: logData.userAgent,
+        screen: logData.screen,
+        timestamp: new Date(logData.timestamp).toISOString()
+      });
+    } catch (e) {
+      console.error('관리자 로그 DB 저장 실패:', e);
+    }
   }
 }
 
@@ -2132,21 +2138,24 @@ async function logUserActivity(action: string, details?: string) {
   localStorage.setItem(USER_LOG_KEY, JSON.stringify(localLogs));
 
   // 2. DB 동기화
-  try {
-    await supabaseClient.from('logs').insert({
-      type: 'user',
-      action: logData.action,
-      user_agent: logData.userAgent,
-      screen: logData.screen,
-      details: logData.details || null,
-      timestamp: new Date(logData.timestamp).toISOString()
-    });
-  } catch (e) {
-    console.error('유저 로그 DB 저장 실패:', e);
+  if (isSupabaseConfigured) {
+    try {
+      await supabaseClient.from('logs').insert({
+        type: 'user',
+        action: logData.action,
+        user_agent: logData.userAgent,
+        screen: logData.screen,
+        details: logData.details || null,
+        timestamp: new Date(logData.timestamp).toISOString()
+      });
+    } catch (e) {
+      console.error('유저 로그 DB 저장 실패:', e);
+    }
   }
 }
 
 async function getAdminLogs(): Promise<AccessLog[]> {
+  if (!isSupabaseConfigured) return [];
   try {
     const { data, error } = await supabaseClient
       .from('logs')
@@ -2156,7 +2165,7 @@ async function getAdminLogs(): Promise<AccessLog[]> {
       .limit(500);
       
     if (error) throw error;
-    return (data || []).map(l => ({
+    return (data || []).map((l: any) => ({
       timestamp: new Date(l.timestamp).getTime(),
       userAgent: l.user_agent,
       screen: l.screen,
@@ -2170,6 +2179,7 @@ async function getAdminLogs(): Promise<AccessLog[]> {
 }
 
 async function getUserLogs(): Promise<AccessLog[]> {
+  if (!isSupabaseConfigured) return [];
   try {
     const { data, error } = await supabaseClient
       .from('logs')
@@ -2179,7 +2189,7 @@ async function getUserLogs(): Promise<AccessLog[]> {
       .limit(500);
       
     if (error) throw error;
-    return (data || []).map(l => ({
+    return (data || []).map((l: any) => ({
       timestamp: new Date(l.timestamp).getTime(),
       userAgent: l.user_agent,
       screen: l.screen,
