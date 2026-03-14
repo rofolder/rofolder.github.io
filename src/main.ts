@@ -29,9 +29,7 @@ import {
   setAdminToken,
   validateServerData,
 } from './security';
-
-// 초기 샘플 데이터 (빈 배열 - 새로운 서버부터 추가됨)
-const initialServers: DiscordServer[] = [];
+import { supabase as supabaseClient } from './supabase';
 
 // 데이터 관리 (LocalStorage 및 JSON 파일 연동)
 const STORAGE_KEY = 'rofolder_servers_v1';
@@ -51,52 +49,81 @@ async function loadServersFromJSON(): Promise<DiscordServer[]> {
   }
 }
 
-// 실시간 갱신: 주기적으로 servers.json 체크
-let pollInterval: number | null = null;
+// 실시간 갱신: Supabase Realtime 구독
+let serverSubscription: any = null;
 
 async function startRealTimePolling() {
-  if (pollInterval) return; // 이미 실행 중
+  if (serverSubscription) return;
   
-  const pollServersFromJSON = async () => {
-    try {
-      const jsonServers = await loadServersFromJSON();
+  console.log('📡 Supabase 실시간 동기화 시작...');
+  
+  serverSubscription = supabaseClient
+    .channel('public:servers')
+    .on('postgres_changes', { event: '*', table: 'servers' } as any, async (payload: any) => {
+      console.log('🔄 실시간 데이터 변경 감지:', payload);
       
-      // approved 서버만 체크
-      const newApprovedServers = jsonServers.filter(s => s.status === 'approved');
-      const currentApprovedServers = servers.filter(s => s.status === 'approved');
-      
-      // 새로운 서버가 추가되었는지 확인
-      if (newApprovedServers.length > currentApprovedServers.length) {
-        const newServers = newApprovedServers.filter(
-          ns => !currentApprovedServers.find(cs => cs.id === ns.id)
-        );
-        
-        // 새 서버들을 서버 목록에 추가 (pending/pending 서버는 제거)
-        servers = servers.filter(s => s.status !== 'pending');
-        servers.push(...newServers);
-        saveServers();
-        
-        // UI 갱신
-        currentPage = 1;
+      // 최신 데이터로 전체 목록 갱신
+      const newServers = await loadServersFromDB();
+      if (newServers.length > 0) {
+        servers = newServers;
         applyFilters();
-        
-        console.log(`✨ ${newServers.length}개의 새로운 서버가 추가되었습니다!`);
+        refreshAdminDashboardIfOpen();
+        console.log('✨ 서버 목록이 실시간으로 업데이트되었습니다.');
       }
-    } catch (e) {
-      console.log('실시간 갱신 중 오류:', e);
-    }
-  };
-  
-  // 10초마다 체크
-  pollInterval = setInterval(pollServersFromJSON, 10000) as unknown as number;
-  console.log('✅ 실시간 갱신 시작됨 (10초마다)');
+    })
+    .subscribe();
+}
+
+async function loadServersFromDB(): Promise<DiscordServer[]> {
+  try {
+    const { data, error } = await supabaseClient
+      .from('servers')
+      .select('*')
+      .order('id', { ascending: false });
+      
+    if (error) throw error;
+    
+    // DB 필드명(snake_case)을 인터페이스(camelCase)로 변환
+    return (data || []).map((s: any) => ({
+      id: s.id,
+      name: s.name,
+      category: s.category,
+      description: s.description,
+      icon: s.icon,
+      tags: s.tags || [],
+      inviteLink: s.invite_link,
+      status: s.status,
+      createdAt: s.created_at ? new Date(s.created_at).getTime() : undefined,
+      approvedAt: s.approved_at ? new Date(s.approved_at).getTime() : undefined,
+      rejectionReason: s.rejection_reason,
+      recommendations: s.recommendations || 0,
+      clicks: s.clicks || 0
+    }));
+  } catch (e) {
+    console.error('Supabase 데이터 로드 실패:', e);
+    return [];
+  }
 }
 
 function stopRealTimePolling() {
-  if (pollInterval) {
-    clearInterval(pollInterval);
-    pollInterval = null;
-    console.log('⛔ 실시간 갱신 중지됨');
+  if (serverSubscription) {
+    serverSubscription.unsubscribe();
+    serverSubscription = null;
+    console.log('⛔ 실시간 동기화 중지됨');
+  }
+}
+
+function refreshAdminDashboardIfOpen() {
+  const adminModal = document.querySelector('#admin-modal-container');
+  if (adminModal && !adminModal.classList.contains('hidden')) {
+    const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as any || 'pending';
+    if (['pending', 'approved', 'rejected', 'all'].includes(currentTab)) {
+      if (currentTab === 'all') {
+        renderAllServers();
+      } else {
+        renderAdminServersByStatus(currentTab);
+      }
+    }
   }
 }
 
@@ -106,36 +133,61 @@ function _unused_stopRealTimePolling() {
 }
 
 async function loadServers(): Promise<DiscordServer[]> {
+  // 1. Supabase에서 먼저 로드 시도
+  const dbServers = await loadServersFromDB();
+  if (dbServers.length > 0) {
+    saveServersToLocal(dbServers); // 로컬 캐시 업데이트
+    return dbServers;
+  }
+
+  // 2. 실패 시 로컬스토리지 시도
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      let parsedServers = JSON.parse(saved);
-      
-      // 사용자 요청: 로폴더 제외 모든 서버 기록 삭제 (1회용 스크립트)
-      if (!localStorage.getItem('wiped_test_servers_v1')) {
-        parsedServers = parsedServers.filter((s: DiscordServer) => 
-          s.name === '로폴더' || s.name === 'RoFolder' || s.name.includes('로폴더')
-        );
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedServers));
-        localStorage.setItem('wiped_test_servers_v1', 'true');
-        console.log('로폴더를 제외한 모든 임시 서버 기록이 로컬 저장소에서 삭제되었습니다.');
-      }
-      
-      return parsedServers;
+      return JSON.parse(saved);
     } catch (e) {
       console.error('LocalStorage 로드 실패');
     }
   }
   
-  // JSON 파일에서 추가 데이터 로드
-  const jsonServers = await loadServersFromJSON();
-  const allServers = [...initialServers, ...jsonServers];
-  
-  return allServers;
+  // 3. 마지막으로 JSON 파일 시도
+  return await loadServersFromJSON();
 }
 
-function saveServers() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(servers));
+async function saveServers() {
+  // 로컬 저장
+  saveServersToLocal(servers);
+  
+  // Supabase 동기화 (관리자 동작 등에서만 주로 수동 호출됨)
+  // 개별 동작(승인/거절/추가)에서 각각 DB 업데이트를 수행하도록 변경할 예정입니다.
+}
+
+function saveServersToLocal(data: DiscordServer[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+async function syncServerToDB(server: DiscordServer) {
+  try {
+    const { error } = await supabaseClient
+      .from('servers')
+      .upsert({
+        id: server.id,
+        name: server.name,
+        category: server.category,
+        description: server.description,
+        icon: server.icon,
+        tags: server.tags,
+        invite_link: server.inviteLink,
+        status: server.status,
+        approved_at: server.approvedAt ? new Date(server.approvedAt).toISOString() : null,
+        rejection_reason: server.rejectionReason,
+        recommendations: server.recommendations || 0,
+        clicks: server.clicks || 0
+      });
+    if (error) throw error;
+  } catch (e) {
+    console.error('DB 동기화 실패:', e);
+  }
 }
 
 // ========== 추천 시스템 관련 상수 및 유저 ID 함수 ==========
@@ -247,7 +299,8 @@ function addRecommendation(serverId: number) {
   const server = servers.find(s => s.id === serverId);
   if (server) {
     server.recommendations = (server.recommendations || 0) + 1;
-    saveServers(); // saveServers() 대신 saveRecommendation(serverId)가 있었으나, saveServers()가 전체 서버를 저장하므로 더 적합
+    saveServers();
+    syncServerToDB(server); // DB 동기화
     logUserActivity('서버 추천', server?.name || `ID: ${serverId}`);
     return true;
   }
@@ -942,6 +995,7 @@ function openPromoBanner() {
 
     servers.unshift(newServer);
     saveServers();
+    await syncServerToDB(newServer); // DB 동기화
 
     // Webhook 발송 (성공 여부 확인)
     let webhookSuccess = false;
@@ -1046,6 +1100,7 @@ function openDetailModal(id: number) {
   // 클릭 수 증가
   server.clicks = (server.clicks || 0) + 1;
   saveServers();
+  syncServerToDB(server); // DB 동기화
   logUserActivity('서버 상세 보기', server.name);
 
   const modal = detailModal();
@@ -1401,6 +1456,13 @@ function renderAllServers() {
         if (idx !== -1) {
           servers.splice(idx, 1);
           saveServers();
+          
+          // DB 삭제 (또는 status를 deleted로 변경할 수 있으나 여기서는 완전 삭제 처리)
+          supabaseClient.from('servers').delete().eq('id', id).then(({ error }) => {
+            if (error) console.error('DB 삭제 실패:', error);
+            refreshAdminDashboardIfOpen();
+          });
+          
           showToast('서버가 삭제되었습니다.', 'success');
           renderAllServers();
         }
@@ -1598,9 +1660,9 @@ function renderAdminInsights() {
 }
 
 // 관리자 접속 기록 렌더링
-function renderAdminAccessLog() {
+async function renderAdminAccessLog() {
   const container = document.getElementById('admin-servers-container')!;
-  const logs = getAdminLogs();
+  const logs = await getAdminLogs();
 
   if (logs.length === 0) {
     container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">접속 기록이 없습니다.</p>`;
@@ -1659,9 +1721,9 @@ function renderAdminAccessLog() {
 }
 
 // 유저 활동 기록 렌더링
-function renderUserActivityLog() {
+async function renderUserActivityLog() {
   const container = document.getElementById('admin-servers-container')!;
-  const logs = getUserLogs();
+  const logs = await getUserLogs();
 
   if (logs.length === 0) {
     container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">유저 활동 기록이 없습니다.</p>`;
@@ -1743,6 +1805,7 @@ function approveServer(id: number) {
   server.tags = Array.from(new Set([...server.tags, '인증됨']));
   
   saveServers();
+  syncServerToDB(server); // DB 동기화
   
   // 현재 탭의 상태를 유지하며 재렌더링
   const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'pending';
@@ -1778,6 +1841,7 @@ function rejectServer(id: number, reason: string) {
   server.status = 'rejected';
   server.rejectionReason = reason;
   saveServers();
+  syncServerToDB(server); // DB 동기화
   
   // 현재 탭의 상태를 유지하며 재렌더링
   const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'pending';
@@ -2013,7 +2077,6 @@ function getAdminStats(): AdminStats {
 // ========== 관리자 접속 기록 시스템 ==========
 const ADMIN_LOG_KEY = 'rofolder_admin_log_v1';
 const USER_LOG_KEY = 'rofolder_user_log_v1';
-const LOG_EXPIRE_DAYS = 30;
 
 interface AccessLog {
   timestamp: number;
@@ -2023,43 +2086,110 @@ interface AccessLog {
   details?: string;
 }
 
-function logAdminAccess(action = '로그인') {
-  let logs: AccessLog[] = [];
-  try { logs = JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch {}
-  const cutoff = Date.now() - LOG_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
-  logs = logs.filter(l => l.timestamp > cutoff);
-  logs.unshift({
+async function logAdminAccess(action = '로그인') {
+  const logData: Omit<AccessLog, 'id'> = {
     timestamp: Date.now(),
     userAgent: navigator.userAgent,
     screen: `${screen.width}x${screen.height}`,
     action
-  });
-  localStorage.setItem(ADMIN_LOG_KEY, JSON.stringify(logs));
+  };
+
+  // 1. 로컬 저장 (백업)
+  let localLogs: AccessLog[] = [];
+  try { localLogs = JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch {}
+  localLogs.unshift(logData as AccessLog);
+  if (localLogs.length > 500) localLogs = localLogs.slice(0, 500);
+  localStorage.setItem(ADMIN_LOG_KEY, JSON.stringify(localLogs));
+
+  // 2. DB 동기화
+  try {
+    await supabaseClient.from('logs').insert({
+      type: 'admin',
+      action: logData.action,
+      user_agent: logData.userAgent,
+      screen: logData.screen,
+      timestamp: new Date(logData.timestamp).toISOString()
+    });
+  } catch (e) {
+    console.error('관리자 로그 DB 저장 실패:', e);
+  }
 }
 
-function logUserActivity(action: string, details?: string) {
-  let logs: AccessLog[] = [];
-  try { logs = JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch {}
-  const cutoff = Date.now() - LOG_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
-  logs = logs.filter(l => l.timestamp > cutoff);
-  logs.unshift({
+async function logUserActivity(action: string, details?: string) {
+  const logData: Omit<AccessLog, 'id'> = {
     timestamp: Date.now(),
     userAgent: navigator.userAgent,
     screen: `${screen.width}x${screen.height}`,
     action,
     details
-  });
-  // 최대 500개까지만 유지 (브라우저 저장소 용량 제한 고려)
-  if (logs.length > 500) logs = logs.slice(0, 500);
-  localStorage.setItem(USER_LOG_KEY, JSON.stringify(logs));
+  };
+
+  // 1. 로컬 저장 (백업)
+  let localLogs: AccessLog[] = [];
+  try { localLogs = JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch {}
+  localLogs.unshift(logData as AccessLog);
+  if (localLogs.length > 500) localLogs = localLogs.slice(0, 500);
+  localStorage.setItem(USER_LOG_KEY, JSON.stringify(localLogs));
+
+  // 2. DB 동기화
+  try {
+    await supabaseClient.from('logs').insert({
+      type: 'user',
+      action: logData.action,
+      user_agent: logData.userAgent,
+      screen: logData.screen,
+      details: logData.details || null,
+      timestamp: new Date(logData.timestamp).toISOString()
+    });
+  } catch (e) {
+    console.error('유저 로그 DB 저장 실패:', e);
+  }
 }
 
-function getAdminLogs(): AccessLog[] {
-  try { return JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch { return []; }
+async function getAdminLogs(): Promise<AccessLog[]> {
+  try {
+    const { data, error } = await supabaseClient
+      .from('logs')
+      .select('*')
+      .eq('type', 'admin')
+      .order('timestamp', { ascending: false })
+      .limit(500);
+      
+    if (error) throw error;
+    return (data || []).map(l => ({
+      timestamp: new Date(l.timestamp).getTime(),
+      userAgent: l.user_agent,
+      screen: l.screen,
+      action: l.action,
+      details: l.details
+    }));
+  } catch {
+    // DB 실패 시 로컬 반환
+    try { return JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch { return []; }
+  }
 }
 
-function getUserLogs(): AccessLog[] {
-  try { return JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch { return []; }
+async function getUserLogs(): Promise<AccessLog[]> {
+  try {
+    const { data, error } = await supabaseClient
+      .from('logs')
+      .select('*')
+      .eq('type', 'user')
+      .order('timestamp', { ascending: false })
+      .limit(500);
+      
+    if (error) throw error;
+    return (data || []).map(l => ({
+      timestamp: new Date(l.timestamp).getTime(),
+      userAgent: l.user_agent,
+      screen: l.screen,
+      action: l.action,
+      details: l.details
+    }));
+  } catch {
+    // DB 실패 시 로컬 반환
+    try { return JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch { return []; }
+  }
 }
 
 // 관리자 클릭 추적 (푸터 로고 5번 클릭)

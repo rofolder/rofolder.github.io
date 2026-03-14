@@ -87,6 +87,10 @@ export const config = {
   discordForumUrl: import.meta.env.VITE_DISCORD_FORUM_URL || 'https://discord.com/channels/YOUR_SERVER_ID/YOUR_FORUM_CHANNEL_ID',
   twitterUrl: import.meta.env.VITE_TWITTER_URL || 'https://twitter.com/rofolder',
   
+  // Supabase 설정
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
+  supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+  
   // 관리자 비밀번호
   adminPassword: import.meta.env.VITE_ADMIN_PASSWORD
 };
