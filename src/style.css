@@ -341,6 +341,40 @@ header {
   opacity: 0.8;
 }
 
+/* 인기 필터 버튼 (붉은 빛) */
+.filter-item.filter-popular {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.filter-item.filter-popular:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
+}
+.filter-item.filter-popular.active {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 
+    0 8px 25px rgba(239, 68, 68, 0.5),
+    inset 1px 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+/* 신규 필터 버튼 (노란 빛) */
+.filter-item.filter-new {
+  border-color: rgba(245, 158, 11, 0.4);
+}
+.filter-item.filter-new:hover {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.3);
+}
+.filter-item.filter-new.active {
+  background: linear-gradient(135deg, #f59e0b, #b45309);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 
+    0 8px 25px rgba(245, 158, 11, 0.5),
+    inset 1px 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
 /* 서버 그리드 */
 .server-grid {
   display: grid;

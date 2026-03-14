@@ -313,13 +313,23 @@ function applyFilters() {
 
 // 필터 버튼 렌더링
 function renderFilters() {
-  const categories = ['전체', '게임', '커뮤니티', '배포', '친목', '방송', '신규', '인기'];
+  const categoriesData = [
+    { name: '전체', icon: '⌂', className: '' },
+    { name: '인기', icon: '★', className: 'filter-popular' },
+    { name: '신규', icon: '✦', className: 'filter-new' },
+    { name: '게임', icon: '✛', className: '' },
+    { name: '커뮤니티', icon: '⚑', className: '' },
+    { name: '배포', icon: '⤓', className: '' },
+    { name: '친목', icon: '♥', className: '' },
+    { name: '방송', icon: '▶', className: '' },
+    { name: '파트너', icon: '♚', className: 'filter-partner' }
+  ];
   const filterBar = document.getElementById('filter-bar')!;
   if (!filterBar) return;
   
-  filterBar.innerHTML = categories.map(cat => `
-    <button class="filter-item ${currentCategory === cat ? 'active' : ''}" data-category="${cat}">
-      ${cat}
+  filterBar.innerHTML = categoriesData.map(cat => `
+    <button class="filter-item ${cat.className} ${currentCategory === cat.name ? 'active' : ''}" data-category="${cat.name}">
+      ${cat.name} ${cat.icon}
     </button>
   `).join('');
 
