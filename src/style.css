@@ -56,13 +56,13 @@ body {
 }
 
 .custom-cursor.hover {
-  width: 60px !important;
-  height: 60px !important;
+  width: 28px !important;
+  height: 28px !important;
   background: white;
 }
 
 .custom-cursor.hover .cursor-text {
-  opacity: 1;
+  opacity: 0;
 }
 
 .cursor-follower {
