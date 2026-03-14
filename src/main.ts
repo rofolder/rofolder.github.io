@@ -1163,6 +1163,7 @@ function openAdminDashboard() {
       <button class="admin-tab-btn" data-tab="all" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">📋 모든 서버</button>
       <button class="admin-tab-btn" data-tab="qa" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">💬 Q&A 관리</button>
       <button class="admin-tab-btn" data-tab="insights" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">📊 인사이트</button>
+      <button class="admin-tab-btn" data-tab="accesslog" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">🔐 접속기록</button>
     </div>
 
     <div id="admin-servers-container" style="max-height: 500px; overflow-y: auto; margin-bottom: 2rem;">
@@ -1206,6 +1207,8 @@ function openAdminDashboard() {
         renderAdminInsights();
       } else if (tab === 'all') {
         renderAllServers();
+      } else if (tab === 'accesslog') {
+        renderAdminAccessLog();
       } else {
         renderAdminServersByStatus(tab as 'pending' | 'approved' | 'rejected');
       }
@@ -1588,6 +1591,67 @@ function renderAdminInsights() {
   container.innerHTML = insightsHTML;
 }
 
+// 관리자 접속 기록 렌더링
+function renderAdminAccessLog() {
+  const container = document.getElementById('admin-servers-container')!;
+  const logs = getAdminLogs();
+
+  if (logs.length === 0) {
+    container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">접속 기록이 없습니다.</p>`;
+    return;
+  }
+
+  const fmtDate = (ts: number) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+  };
+
+  const getBrowser = (ua: string) => {
+    if (ua.includes('Chrome') && !ua.includes('Edg')) return '🌐 Chrome';
+    if (ua.includes('Firefox')) return '🦊 Firefox';
+    if (ua.includes('Safari') && !ua.includes('Chrome')) return '🧭 Safari';
+    if (ua.includes('Edg')) return '🌀 Edge';
+    return '🔍 기타';
+  };
+
+  const isMobile = (ua: string) => /Mobile|Android|iPhone|iPad/.test(ua);
+
+  container.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <span style="color: var(--text-secondary); font-size: 0.9rem;">총 ${logs.length}개 · 30일 보관</span>
+      <button id="clear-logs-btn" style="background: #ef4444; color: white; border: none; padding: 0.4rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.85rem;">🗑️ 기록 전체 삭제</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 0.7rem;">
+      ${logs.map((log, i) => `
+        <div class="glass" style="padding: 1rem; border-radius: 0.75rem; display: flex; gap: 1rem; align-items: center; border-left: 3px solid ${log.action.includes('성공') ? '#10b981' : '#6366f1'};">
+          <div style="font-size: 1.5rem; min-width: 36px; text-align: center;">${isMobile(log.userAgent) ? '📱' : '💻'}</div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.3rem;">
+              <span style="font-weight: bold; color: var(--text-primary); font-size: 0.95rem;">${escapeHtml(log.action)}</span>
+              <span style="background: rgba(99,102,241,0.15); color: #a5b4fc; padding: 0.15rem 0.5rem; border-radius: 0.4rem; font-size: 0.78rem;">#${logs.length - i}</span>
+            </div>
+            <div style="color: var(--text-secondary); font-size: 0.82rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+              <span>🕐 ${fmtDate(log.timestamp)}</span>
+              <span>${getBrowser(log.userAgent)}</span>
+              <span>📺 ${escapeHtml(log.screen)}</span>
+              <span>${isMobile(log.userAgent) ? '📱 모바일' : '🖥️ 데스크톱'}</span>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  document.getElementById('clear-logs-btn')?.addEventListener('click', async () => {
+    const confirmed = await showConfirm('접속 기록을 모두 삭제하시겠습니까?');
+    if (confirmed) {
+      localStorage.removeItem(ADMIN_LOG_KEY);
+      showToast('접속 기록이 삭제되었습니다.', 'success');
+      renderAdminAccessLog();
+    }
+  });
+}
+
 // 대기 중인 서버 목록 렌더링 (레거시 - 호환성 유지)
 // @ts-ignore
 function renderPendingServers() {
@@ -1871,6 +1935,36 @@ function getAdminStats(): AdminStats {
   };
 }
 
+// ========== 관리자 접속 기록 시스템 ==========
+const ADMIN_LOG_KEY = 'rofolder_admin_log_v1';
+const LOG_EXPIRE_DAYS = 30;
+
+interface AdminAccessLog {
+  timestamp: number;
+  userAgent: string;
+  screen: string;
+  action: string;
+}
+
+function logAdminAccess(action = '로그인') {
+  let logs: AdminAccessLog[] = [];
+  try { logs = JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch {}
+  // 30일 지난 항목 자동 삭제
+  const cutoff = Date.now() - LOG_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
+  logs = logs.filter(l => l.timestamp > cutoff);
+  logs.unshift({
+    timestamp: Date.now(),
+    userAgent: navigator.userAgent,
+    screen: `${screen.width}x${screen.height}`,
+    action
+  });
+  localStorage.setItem(ADMIN_LOG_KEY, JSON.stringify(logs));
+}
+
+function getAdminLogs(): AdminAccessLog[] {
+  try { return JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch { return []; }
+}
+
 // 관리자 클릭 추적 (푸터 로고 5번 클릭)
 let adminPasswordAttempts = 0;
 let adminPasswordLocktime = 0;
@@ -1898,6 +1992,7 @@ function trackAdminClick() {
       if (password === config.adminPassword) {
         adminPasswordAttempts = 0; // 정확한 비밀번호 입력
         setAdminToken('admin_access_token_' + Date.now());
+        logAdminAccess('로그인 성공');
         openAdminDashboard();
       } else {
         adminPasswordAttempts++;
