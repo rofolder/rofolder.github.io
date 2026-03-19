@@ -408,15 +408,14 @@ function applyFilters() {
 // 필터 버튼 렌더링
 function renderFilters() {
   const categoriesData = [
-    { name: '전체', icon: '⌂', className: '' },
-    { name: '인기', icon: '★', className: 'filter-popular' },
-    { name: '신규', icon: '✦', className: 'filter-new' },
-    { name: '게임', icon: '✛', className: '' },
-    { name: '커뮤니티', icon: '⚑', className: '' },
-    { name: '배포', icon: '⤓', className: '' },
-    { name: '친목', icon: '♥', className: '' },
-    { name: '방송', icon: '▶', className: '' },
-    { name: '파트너', icon: '♚', className: 'filter-partner' }
+    { name: '전체', icon: '🏠', className: '' },
+    { name: '인기', icon: '🔥', className: 'filter-popular' },
+    { name: '신규', icon: '✨', className: 'filter-new' },
+    { name: '게임', icon: '🎮', className: '' },
+    { name: '개발', icon: '💻', className: '' },
+    { name: '판매서버', icon: '💰', className: '' },
+    { name: '커뮤니티', icon: '👤', className: '' },
+    { name: '파트너', icon: '💎', className: 'filter-partner' }
   ];
   const filterBar = document.getElementById('filter-bar')!;
   if (!filterBar) return;
@@ -690,6 +689,22 @@ function renderServers() {
   const endIndex = startIndex + itemsPerPage;
   const pagedServers = filteredServers.slice(startIndex, endIndex);
 
+  // 엠티 스테이트 (서버가 없을 때)
+  if (filteredServers.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1 / -1;">
+        <div class="empty-icon">📂</div>
+        <h3>아직 등록된 서버가 없습니다</h3>
+        <p>당신의 로샵을 첫 번째로 등록해보세요! 전문가들이 기다리고 있습니다.</p>
+        <button class="nav-link nav-link-primary" id="empty-register-btn" style="padding: 1rem 3rem; font-size: 1.1rem;">지금 서버 등록하기</button>
+      </div>
+    `;
+    document.getElementById('empty-register-btn')?.addEventListener('click', () => {
+      document.getElementById('open-register')?.click();
+    });
+    return;
+  }
+
   let carouselHTML = '';
   if (currentPage === 1 && filteredServers.length > 0) {
     carouselHTML = `
@@ -778,7 +793,10 @@ function renderServers() {
         <div class="server-info">
           <h3>${escapeHtml(server.name)}</h3>
           <div class="server-tags">
-            ${server.tags.map(tag => `<span class="server-tag">${escapeHtml(tag)}</span>`).join('')}
+            ${server.tags.map(tag => {
+              const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find(t => t.value === tag);
+              return `<span class="server-tag">${tagConfig?.emoji || '🏷️'} ${escapeHtml(tag)}</span>`;
+            }).join('')}
           </div>
         </div>
       </div>
@@ -2520,19 +2538,46 @@ async function init() {
         <span>${config.siteName}</span>
       </a>
       <div class="nav-links">
-        <a href="${config.originalSiteUrl}" target="_blank" class="nav-link">로폴더 바로가기</a>
+        <a href="${config.originalSiteUrl}" target="_blank" class="nav-link">로폴더 커뮤니티</a>
         <button id="open-register" class="nav-link nav-link-primary">서버 등록</button>
       </div>
     </header>
 
     <main>
       <section class="hero">
-        <h1 class="hero-title">당신의 가치를 높이는<br>커뮤니티의 모든 것</h1>
-        <p class="hero-subtitle">가장 세련된 방식으로 디스코드 서버를 탐색하고 홍보하세요. 사용자를 위한 서버 목록 로폴더입니다.</p>
+        <div class="about-badge">ROBLOX MODEL SHOP PLATFORM</div>
+        <h1 class="hero-title">당신의 가치를 높이는<br>로샵 탐색의 모든 것</h1>
+        <p class="hero-subtitle">로폴더는 로블록스 이용자들을 위한 모델샵(로샵) 탐색 전용 플랫폼입니다. 수많은 로샵 사이에서 원하는 제품과 서비스를 가장 세련된 방식으로 찾아보세요.</p>
         
         <div class="search-container glass">
-          <input type="text" id="search-input" class="search-input" placeholder="관심 있는 서버 이름을 입력하세요...">
+          <input type="text" id="search-input" class="search-input" placeholder="찾고 싶은 로샵 테마나 이름을 입력하세요...">
           <button id="search-btn" class="search-button">검색하기</button>
+        </div>
+      </section>
+
+      <!-- 브랜드 소개 섹션 -->
+      <section class="about-section stagger-reveal">
+        <div class="about-header">
+          <h2 class="about-title">로폴더는 어떤 공간인가요?</h2>
+          <p class="about-desc">단순히 샵을 나열하는 것에 그치지 않고, 유저가 '진정으로 찾고 싶어 하는' 퀄리티 있고 희소성 있는 로샵을 연결합니다.</p>
+        </div>
+        
+        <div class="features-grid">
+          <div class="feature-card glass">
+            <div class="feature-icon">🔍</div>
+            <h3>강력한 검색 및 분류</h3>
+            <p>'군사', '차량', '건물' 등 특정 테마의 샵을 직접 검색하거나 카테고리별로 쉽게 둘러볼 수 있어 원하는 샵을 빠르게 찾을 수 있습니다.</p>
+          </div>
+          <div class="feature-card glass">
+            <div class="feature-icon">⚡</div>
+            <h3>획기적인 시간 절약</h3>
+            <p>수많은 서버를 일일이 들어가고 광고 채널을 헤맬 필요 없이, 로폴더 한 곳에서 퀄리티 높은 로샵을 비교하고 바로 선택하세요.</p>
+          </div>
+          <div class="feature-card glass">
+            <div class="feature-icon">💎</div>
+            <h3>운영자와 유저의 상생</h3>
+            <p>유저는 명확한 정보를 얻고, 운영자는 자신의 샵을 효과적으로 소개하며 협업의 기회를 얻을 수 있는 로블록스 필수 집합 플랫폼입니다.</p>
+          </div>
         </div>
       </section>
 
