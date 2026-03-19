@@ -424,8 +424,12 @@ const registerModal = () => document.querySelector<HTMLDivElement>('#register-mo
 // 필터링 적용 함수
 function applyFilters() {
   filteredServers = servers.filter(s => {
-    // 승인된 서버만 메인 페이지에 표시
-    // (관리자 대시보드에서는 pending/rejected도 볼 수 있음)
+    // 승인된 로샵만 메인 페이지에 표시
+    if (s.status !== 'approved') return false;
+    
+    const matchCategory = currentCategory === '전체' || 
+                          s.category === currentCategory || 
+                          s.tags.includes(currentCategory);
     const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                         s.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCategory && matchSearch;
