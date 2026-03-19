@@ -254,6 +254,68 @@ header {
   box-shadow: 0 10px 30px var(--accent-glow);
 }
 
+/* Q&A 플로팅 버튼 */
+.qa-fab {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 60px;
+  height: 60px;
+  background: var(--accent-gradient);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
+  z-index: 1000;
+  transition: var(--transition-smooth);
+  border: none;
+}
+
+.qa-fab:hover {
+  transform: scale(1.1) rotate(10deg);
+  box-shadow: 0 15px 35px rgba(99, 102, 241, 0.6);
+}
+
+.qa-fab-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 2px solid var(--bg-primary);
+}
+
+/* 헤더 내 Q&A 네비게이션 */
+.nav-link-qa {
+  position: relative;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: var(--transition-smooth);
+}
+
+.nav-link-qa:hover {
+  color: var(--accent-color);
+}
+
+.nav-link-qa::after {
+  content: 'NEW';
+  position: absolute;
+  top: -12px;
+  right: -20px;
+  font-size: 0.6rem;
+  background: var(--accent-color);
+  color: white;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
 /* 브랜드 소개 섹션 */
 .about-section {
   padding: 8rem 0;
@@ -360,6 +422,48 @@ header {
 .empty-state p {
   color: var(--text-secondary);
   margin-bottom: 2.5rem;
+}
+
+/* 섹션 타이틀 알잘딱 디자인 */
+.section-title-wrap {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2rem;
+  padding: 0 1rem;
+}
+
+.section-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.section-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+/* 브랜드 키워드 하이라이트 */
+.brand-highlight {
+  color: var(--accent-color);
+  position: relative;
+  z-index: 1;
+}
+
+.brand-highlight::after {
+  content: '';
+  position: absolute;
+  bottom: 0.1em;
+  left: 0;
+  width: 100%;
+  height: 0.3em;
+  background: rgba(99, 102, 241, 0.2);
+  z-index: -1;
+  border-radius: 2px;
 }
 
 /* 필터 바 - 리퀴드 글래스 & 스티키 */

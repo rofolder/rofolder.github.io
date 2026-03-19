@@ -148,6 +148,44 @@ function _unused_stopRealTimePolling() {
   stopRealTimePolling();
 }
 
+function loadServersFromLocal(): DiscordServer[] {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (data) {
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  // v1 데이터 마이그레이션 시도 (데이터 유실 방지)
+  const v1Data = localStorage.getItem('rofolder_servers_v1');
+  if (v1Data) {
+    try {
+      const parsedV1 = JSON.parse(v1Data);
+      console.log('v1 데이터 발견, v2로 마이그레이션 진행');
+      
+      // 중복 방지 로직 (ID 기준)
+      const currentV2 = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const combined = [...currentV2];
+      
+      parsedV1.forEach((server: any) => {
+        if (!combined.some((s: any) => s.id === server.id)) {
+          combined.push(server);
+        }
+      });
+      
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(combined));
+      console.log('마이그레이션 완료:', combined.length, '개 서버');
+      return combined;
+    } catch (e) {
+      return [];
+    }
+  }
+  
+  return [];
+}
+
 async function loadServers(): Promise<DiscordServer[]> {
   // 1. MongoDB에서 먼저 로드 시도
   const dbServers = await loadServersFromDB();
@@ -157,13 +195,9 @@ async function loadServers(): Promise<DiscordServer[]> {
   }
 
   // 2. 실패 시 로컬스토리지 시도
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      console.error('LocalStorage 로드 실패');
-    }
+  const saved = loadServersFromLocal();
+  if (saved.length > 0) {
+    return saved;
   }
   
   // 3. 마지막으로 JSON 파일 시도
@@ -314,7 +348,7 @@ function canRecommend(serverId: number): boolean {
 // 추천 추가
 function addRecommendation(serverId: number) {
   if (!canRecommend(serverId)) {
-    showToast('⚠️ 오늘 이미 추천하신 서버입니다.', 'error');
+    showToast('⚠️ 오늘 이미 추천하신 로샵입니다.', 'error');
     return false;
   }
 
@@ -329,7 +363,7 @@ function addRecommendation(serverId: number) {
     server.recommendations = (server.recommendations || 0) + 1;
     saveServers();
     syncServerToDB(server); // DB 동기화
-    logUserActivity('서버 추천', server?.name || `ID: ${serverId}`);
+    logUserActivity('로샵 추천', server?.name || `ID: ${serverId}`);
     return true;
   }
   return false;
@@ -392,11 +426,6 @@ function applyFilters() {
   filteredServers = servers.filter(s => {
     // 승인된 서버만 메인 페이지에 표시
     // (관리자 대시보드에서는 pending/rejected도 볼 수 있음)
-    if (s.status !== 'approved') return false;
-    
-    const matchCategory = currentCategory === '전체' || 
-                          s.category === currentCategory || 
-                          s.tags.includes(currentCategory);
     const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                         s.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCategory && matchSearch;
@@ -468,8 +497,8 @@ function showQAModal() {
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
       <div class="glass" style="padding: 1.5rem; border-radius: 1rem;">
         <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">질문 올리기</h3>
-        <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem;">서버에 대해 궁금한 점을 질문하세요</p>
-        <button id="show-ask-form" style="width: 100%; padding: 0.8rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold;">
+        <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem;">로샵 이용이나 등록에 대해 질문하세요</p>
+        <button id="show-ask-form" style="width: 100%; padding: 0.8rem; background: var(--accent-gradient); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold;">
           ❓ 질문하기
         </button>
       </div>
@@ -742,7 +771,7 @@ function renderServers() {
       topServersHTML = `
         <div class="top-servers-section" style="grid-column: 1 / -1; margin-bottom: 3rem;">
           <h2 style="font-size: 1.8rem; margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-            🔥 오늘의 인기 서버 Top 5
+            🔥 실시간 인기 <span class="brand-highlight">로샵</span> Top 5
           </h2>
           <div class="top-servers-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.2rem; margin-bottom: 1.5rem;">
             ${topFive.map((server, idx) => `
@@ -814,13 +843,13 @@ function renderServers() {
     });
   });
 
-  // 카드 추천 버튼 이벤트
+  // 로샵 추천 버튼 이벤트
   grid.querySelectorAll('.recommend-icon-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = parseInt((btn as HTMLElement).dataset.id!);
       
-      const confirmed = await showConfirm('🌟 이 서버를 추천하시겠습니까?\n추천은 1일 1회만 가능합니다.');
+      const confirmed = await showConfirm('🌟 이 로샵을 추천하시겠습니까?\n추천은 1일 1회만 가능합니다.');
       if (confirmed) {
         if (addRecommendation(id)) {
           showToast('추천이 완료되었습니다!', 'success');
@@ -875,9 +904,9 @@ function openPromoBanner() {
   
   content.innerHTML = `
     <button class="modal-close" id="close-promo-modal">&times;</button>
-    <h2 style="margin-bottom: 2.5rem; font-size: 1.8rem;">🚀 서버 등록하기</h2>
+    <h2 style="margin-bottom: 2.5rem; font-size: 1.8rem;">🚀 로샵 등록 신청</h2>
     <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 1.05rem;">
-      당신의 프리미엄 커뮤니티를 RoFolder에 등록하고 더 많은 멤버를 확보하세요!
+      당신의 프리미엄 로샵을 RoFolder에 등록하고 더 많은 유저와 연결되세요!
     </p>
     <form id="promo-form" class="register-form">
       <div class="form-group">
@@ -2538,20 +2567,21 @@ async function init() {
         <span>${config.siteName}</span>
       </a>
       <div class="nav-links">
-        <a href="${config.originalSiteUrl}" target="_blank" class="nav-link">로폴더 커뮤니티</a>
-        <button id="open-register" class="nav-link nav-link-primary">서버 등록</button>
+        <a href="#" class="nav-link nav-link-qa" id="header-qa-btn">Q&A</a>
+        <a href="${config.originalSiteUrl}" target="_blank" class="nav-link">커뮤니티</a>
+        <button id="open-register" class="nav-link nav-link-primary">로샵 등록</button>
       </div>
     </header>
 
     <main>
       <section class="hero">
-        <div class="about-badge">ROBLOX MODEL SHOP PLATFORM</div>
-        <h1 class="hero-title">당신의 가치를 높이는<br>로샵 탐색의 모든 것</h1>
-        <p class="hero-subtitle">로폴더는 로블록스 이용자들을 위한 모델샵(로샵) 탐색 전용 플랫폼입니다. 수많은 로샵 사이에서 원하는 제품과 서비스를 가장 세련된 방식으로 찾아보세요.</p>
+        <div class="about-badge">PREMIUM RO-SHOP PLATFORM</div>
+        <h1 class="hero-title">당신의 가치를 높이는<br><span class="brand-highlight">로샵</span> 탐색의 모든 것</h1>
+        <p class="hero-subtitle">로폴더는 로블록스 유저들을 위한 <span class="brand-highlight">로샵(Ro-Shop)</span> 탐색 전용 플랫폼입니다. 수많은 샵 사이에서 원하는 제품과 서비스를 가장 스마트하게 찾아보세요.</p>
         
         <div class="search-container glass">
           <input type="text" id="search-input" class="search-input" placeholder="찾고 싶은 로샵 테마나 이름을 입력하세요...">
-          <button id="search-btn" class="search-button">검색하기</button>
+          <button id="search-btn" class="search-button">찾아보기</button>
         </div>
       </section>
 
@@ -2565,8 +2595,8 @@ async function init() {
         <div class="features-grid">
           <div class="feature-card glass">
             <div class="feature-icon">🔍</div>
-            <h3>강력한 검색 및 분류</h3>
-            <p>'군사', '차량', '건물' 등 특정 테마의 샵을 직접 검색하거나 카테고리별로 쉽게 둘러볼 수 있어 원하는 샵을 빠르게 찾을 수 있습니다.</p>
+            <h3>스마트한 로샵 검색</h3>
+            <p>'군사', '차량', '건물' 등 특정 테마의 로샵을 직접 검색하거나 카테고리별로 쉽게 둘러볼 수 있어 원하는 상품을 빠르게 찾을 수 있습니다.</p>
           </div>
           <div class="feature-card glass">
             <div class="feature-icon">⚡</div>
@@ -2576,10 +2606,15 @@ async function init() {
           <div class="feature-card glass">
             <div class="feature-icon">💎</div>
             <h3>운영자와 유저의 상생</h3>
-            <p>유저는 명확한 정보를 얻고, 운영자는 자신의 샵을 효과적으로 소개하며 협업의 기회를 얻을 수 있는 로블록스 필수 집합 플랫폼입니다.</p>
+            <p>유저는 명확한 정보를 얻고, 운영자는 자신의 로샵을 효과적으로 소개하며 협업의 기회를 얻을 수 있는 필수 플랫폼입니다.</p>
           </div>
         </div>
       </section>
+
+      <div class="section-title-wrap">
+        <h2 class="section-title">✨ 지금 핫한 <span class="brand-highlight">로샵</span></h2>
+        <span class="section-subtitle">실시간 추천수가 높은 검증된 샵들입니다.</span>
+      </div>
 
       <div id="filter-bar" class="filter-bar glass"></div>
       
