@@ -29,11 +29,13 @@ import {
   setAdminToken,
   validateServerData,
 } from './security';
-import { supabase as supabaseClient, isSupabaseConfigured } from './supabase';
+import { getMongoClient, isMongoDBConfigured } from './mongodb';
 
 // 데이터 관리 (LocalStorage 및 JSON 파일 연동)
-const STORAGE_KEY = 'rofolder_servers_v1';
+const STORAGE_KEY = 'rofolder_servers_v2'; // 버전을 올려서 충돌 방지
 const JSON_DATA_URL = '/servers.json';
+
+let serverSubscription: any = null;
 
 async function loadServersFromJSON(): Promise<DiscordServer[]> {
   try {
@@ -49,42 +51,21 @@ async function loadServersFromJSON(): Promise<DiscordServer[]> {
   }
 }
 
-// 실시간 갱신: Supabase Realtime 구독
-let serverSubscription: any = null;
-
-async function startRealTimePolling() {
-  if (!isSupabaseConfigured || serverSubscription) return;
-  
-  console.log('📡 Supabase 실시간 동기화 시작...');
-  
-  serverSubscription = supabaseClient
-    .channel('public:servers')
-    .on('postgres_changes', { event: '*', table: 'servers' } as any, async (payload: any) => {
-      console.log('🔄 실시간 데이터 변경 감지:', payload);
-      
-      // 최신 데이터로 전체 목록 갱신
-      const newServers = await loadServersFromDB();
-      if (newServers.length > 0) {
-        servers = newServers;
-        applyFilters();
-        refreshAdminDashboardIfOpen();
-        console.log('✨ 서버 목록이 실시간으로 업데이트되었습니다.');
-      }
-    })
-    .subscribe();
-}
-
-async function loadServersFromDB(): Promise<DiscordServer[]> {
-  if (!isSupabaseConfigured) return [];
+async function loadServersFromDB(skip = 0, limit = config.pageSize): Promise<DiscordServer[]> {
+  if (!isMongoDBConfigured) return [];
   try {
-    const { data, error } = await supabaseClient
-      .from('servers')
-      .select('*')
-      .order('id', { ascending: false });
-      
-    if (error) throw error;
+    const mongo = await getMongoClient();
+    if (!mongo) return [];
+
+    const collection = mongo.db.collection('servers');
+    // realm-web의 find는 옵션 객체에 sort, skip, limit을 받습니다.
+    const data = await collection.find(
+      { status: 'approved' },
+      // @ts-ignore - realm-web 타입 보완
+      { sort: { id: -1 }, skip, limit }
+    );
     
-    // DB 필드명(snake_case)을 인터페이스(camelCase)로 변환
+    // DB 데이터를 DiscordServer 형식으로 매핑
     return (data || []).map((s: any) => ({
       id: s.id,
       name: s.name,
@@ -101,14 +82,48 @@ async function loadServersFromDB(): Promise<DiscordServer[]> {
       clicks: s.clicks || 0
     }));
   } catch (e) {
-    console.error('Supabase 데이터 로드 실패:', e);
+    console.error('MongoDB 데이터 로드 실패:', e);
     return [];
+  }
+}
+
+// 실시간 갱신: MongoDB Watch (Change Streams)
+async function startRealTimePolling() {
+  if (!isMongoDBConfigured || serverSubscription) return;
+  
+  console.log('📡 MongoDB 실시간 동기화 시작...');
+  
+  try {
+    const mongo = await getMongoClient();
+    if (!mongo) return;
+
+    const collection = mongo.db.collection('servers');
+    const watcher = collection.watch();
+    serverSubscription = watcher;
+
+    (async () => {
+      try {
+        for await (const change of watcher) {
+          console.log('🔄 실시간 데이터 변경 감지:', change);
+          const newServers = await loadServersFromDB(0, Math.max(servers.length, 20));
+          if (newServers.length > 0) {
+            servers = newServers;
+            applyFilters();
+            refreshAdminDashboardIfOpen();
+          }
+        }
+      } catch (err) {
+        console.error('Watch loop error:', err);
+        serverSubscription = null;
+      }
+    })();
+  } catch (e) {
+    console.error('MongoDB 실시간 구독 실패:', e);
   }
 }
 
 function stopRealTimePolling() {
   if (serverSubscription) {
-    serverSubscription.unsubscribe();
     serverSubscription = null;
     console.log('⛔ 실시간 동기화 중지됨');
   }
@@ -134,7 +149,7 @@ function _unused_stopRealTimePolling() {
 }
 
 async function loadServers(): Promise<DiscordServer[]> {
-  // 1. Supabase에서 먼저 로드 시도
+  // 1. MongoDB에서 먼저 로드 시도
   const dbServers = await loadServersFromDB();
   if (dbServers.length > 0) {
     saveServersToLocal(dbServers); // 로컬 캐시 업데이트
@@ -168,25 +183,36 @@ function saveServersToLocal(data: DiscordServer[]) {
 }
 
 async function syncServerToDB(server: DiscordServer) {
-  if (!isSupabaseConfigured) return;
+  if (!isMongoDBConfigured) return;
   try {
-    const { error } = await supabaseClient
-      .from('servers')
-      .upsert({
-        id: server.id,
-        name: server.name,
-        category: server.category,
-        description: server.description,
-        icon: server.icon,
-        tags: server.tags,
-        invite_link: server.inviteLink,
-        status: server.status,
-        approved_at: server.approvedAt ? new Date(server.approvedAt).toISOString() : null,
-        rejection_reason: server.rejectionReason,
-        recommendations: server.recommendations || 0,
-        clicks: server.clicks || 0
-      });
-    if (error) throw error;
+    const mongo = await getMongoClient();
+    if (!mongo) return;
+
+    const collection = mongo.db.collection('servers');
+    
+    // MongoDB Atlas App Services (Realm)의 upsert 패턴
+    // filter에 맞는 문서가 있으면 update, 없으면 insert
+    await collection.updateOne(
+      { id: server.id },
+      { 
+        $set: {
+          name: server.name,
+          category: server.category,
+          description: server.description,
+          icon: server.icon,
+          tags: server.tags,
+          invite_link: server.inviteLink,
+          status: server.status,
+          approved_at: server.approvedAt ? new Date(server.approvedAt).toISOString() : null,
+          rejection_reason: server.rejectionReason,
+          recommendations: server.recommendations || 0,
+          clicks: server.clicks || 0,
+          updated_at: new Date().toISOString()
+        }
+      },
+      { upsert: true }
+    );
+    console.log(`✅ DB 동기화 완료 (ID: ${server.id})`);
   } catch (e) {
     console.error('DB 동기화 실패:', e);
   }
@@ -705,8 +731,8 @@ function renderServers() {
           </h2>
           <div class="top-servers-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.2rem; margin-bottom: 1.5rem;">
             ${topFive.map((server, idx) => `
-              <div class="top-server-card glass" data-id="${server.id}" style="position: relative; padding: 1.2rem;">
-                <div style="position: absolute; top: -8px; right: 1rem; background: linear-gradient(135deg, #fa8231, #f97316); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1rem; box-shadow: 0 4px 15px rgba(250, 130, 49, 0.4);">
+              <div class="top-server-card glass stagger-reveal" data-id="${server.id}" style="position: relative; padding: 1.2rem; animation-delay: ${idx * 0.1}s;">
+                <div style="position: absolute; top: -8px; right: 1rem; background: linear-gradient(135deg, #fa8231, #f97316); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1rem; box-shadow: 0 4px 15px rgba(250, 130, 49, 0.4); z-index: 10;">
                   ${idx + 1}
                 </div>
                 <div style="display: flex; gap: 0.75rem; margin-bottom: 0.8rem;">
@@ -745,8 +771,8 @@ function renderServers() {
     }
   }
 
-  grid.innerHTML = carouselHTML + topServersHTML + pagedServers.map(server => `
-    <div class="server-card glass" data-id="${server.id}">
+  grid.innerHTML = carouselHTML + topServersHTML + pagedServers.map((server, idx) => `
+    <div class="server-card glass" data-id="${server.id}" style="animation-delay: ${(currentPage === 1 ? 0.5 : 0) + (idx * 0.05)}s;">
       <div class="server-header">
         <img src="${escapeHtml(server.icon)}" class="server-icon loading" alt="${escapeHtml(server.name)}" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'; this.classList.remove('loading');" onload="this.classList.remove('loading');">
         <div class="server-info">
@@ -1459,11 +1485,14 @@ function renderAllServers() {
           servers.splice(idx, 1);
           saveServers();
           
-          // DB 삭제 (또는 status를 deleted로 변경할 수 있으나 여기서는 완전 삭제 처리)
-          if (isSupabaseConfigured) {
-            supabaseClient.from('servers').delete().eq('id', id).then(({ error }: { error: any }) => {
-              if (error) console.error('DB 삭제 실패:', error);
-              refreshAdminDashboardIfOpen();
+          // DB 삭제
+          if (isMongoDBConfigured) {
+            getMongoClient().then(mongo => {
+              if (mongo) {
+                mongo.db.collection('servers').deleteOne({ id }).then(() => {
+                   refreshAdminDashboardIfOpen();
+                });
+              }
             });
           }
           
@@ -1961,7 +1990,7 @@ function editServer(id: number) {
   });
 
   // 폼 제출
-  form.onsubmit = (e) => {
+  form.onsubmit = async (e) => {
     e.preventDefault();
     
     const nameInput = (document.getElementById('reg-name') as HTMLInputElement).value.trim();
@@ -2003,6 +2032,7 @@ function editServer(id: number) {
     server.tags = [...new Set([...userTags, ...adminTags])];
 
     saveServers();
+    await syncServerToDB(server); // DB 동기화
     alert('✅ 서버 정보가 수정되었습니다.');
     modal.classList.add('hidden');
     
@@ -2019,6 +2049,16 @@ function deleteServer(id: number) {
 
   servers.splice(index, 1);
   saveServers();
+  
+  // DB 삭제
+  if (isMongoDBConfigured) {
+    getMongoClient().then(mongo => {
+      if (mongo) {
+        mongo.db.collection('servers').deleteOne({ id });
+      }
+    });
+  }
+
   alert('✅ 서버가 삭제되었습니다.');
   
   // 관리자 대시보드 새로고침
@@ -2040,6 +2080,7 @@ function updateServerStatus(id: number, newStatus: 'pending' | 'approved' | 'rej
   }
   
   saveServers();
+  syncServerToDB(server); // DB 동기화
   
   // 승인된 경우 servers.json 업데이트 (자동 커밋용)
   if (newStatus === 'approved') {
@@ -2091,30 +2132,28 @@ interface AccessLog {
 }
 
 async function logAdminAccess(action = '로그인') {
-  const logData: Omit<AccessLog, 'id'> = {
-    timestamp: Date.now(),
+  const logData = {
+    timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
     screen: `${screen.width}x${screen.height}`,
-    action
+    action,
+    type: 'admin'
   };
 
   // 1. 로컬 저장 (백업)
-  let localLogs: AccessLog[] = [];
+  let localLogs: any[] = [];
   try { localLogs = JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch {}
-  localLogs.unshift(logData as AccessLog);
+  localLogs.unshift(logData);
   if (localLogs.length > 500) localLogs = localLogs.slice(0, 500);
   localStorage.setItem(ADMIN_LOG_KEY, JSON.stringify(localLogs));
 
   // 2. DB 동기화
-  if (isSupabaseConfigured) {
+  if (isMongoDBConfigured) {
     try {
-      await supabaseClient.from('logs').insert({
-        type: 'admin',
-        action: logData.action,
-        user_agent: logData.userAgent,
-        screen: logData.screen,
-        timestamp: new Date(logData.timestamp).toISOString()
-      });
+      const mongo = await getMongoClient();
+      if (mongo) {
+        await mongo.db.collection('logs').insertOne(logData);
+      }
     } catch (e) {
       console.error('관리자 로그 DB 저장 실패:', e);
     }
@@ -2122,32 +2161,29 @@ async function logAdminAccess(action = '로그인') {
 }
 
 async function logUserActivity(action: string, details?: string) {
-  const logData: Omit<AccessLog, 'id'> = {
-    timestamp: Date.now(),
+  const logData = {
+    timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
     screen: `${screen.width}x${screen.height}`,
     action,
-    details
+    details: details || null,
+    type: 'user'
   };
 
   // 1. 로컬 저장 (백업)
-  let localLogs: AccessLog[] = [];
+  let localLogs: any[] = [];
   try { localLogs = JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch {}
-  localLogs.unshift(logData as AccessLog);
+  localLogs.unshift(logData);
   if (localLogs.length > 500) localLogs = localLogs.slice(0, 500);
   localStorage.setItem(USER_LOG_KEY, JSON.stringify(localLogs));
 
   // 2. DB 동기화
-  if (isSupabaseConfigured) {
+  if (isMongoDBConfigured) {
     try {
-      await supabaseClient.from('logs').insert({
-        type: 'user',
-        action: logData.action,
-        user_agent: logData.userAgent,
-        screen: logData.screen,
-        details: logData.details || null,
-        timestamp: new Date(logData.timestamp).toISOString()
-      });
+      const mongo = await getMongoClient();
+      if (mongo) {
+        await mongo.db.collection('logs').insertOne(logData);
+      }
     } catch (e) {
       console.error('유저 로그 DB 저장 실패:', e);
     }
@@ -2155,49 +2191,49 @@ async function logUserActivity(action: string, details?: string) {
 }
 
 async function getAdminLogs(): Promise<AccessLog[]> {
-  if (!isSupabaseConfigured) return [];
+  if (!isMongoDBConfigured) return [];
   try {
-    const { data, error } = await supabaseClient
-      .from('logs')
-      .select('*')
-      .eq('type', 'admin')
-      .order('timestamp', { ascending: false })
-      .limit(500);
+    const mongo = await getMongoClient();
+    if (!mongo) return [];
+    
+    const data = await mongo.db.collection('logs').find(
+      { type: 'admin' },
+      // @ts-ignore
+      { sort: { timestamp: -1 }, limit: 500 }
+    );
       
-    if (error) throw error;
     return (data || []).map((l: any) => ({
       timestamp: new Date(l.timestamp).getTime(),
-      userAgent: l.user_agent,
+      userAgent: l.user_agent || l.userAgent,
       screen: l.screen,
       action: l.action,
       details: l.details
     }));
   } catch {
-    // DB 실패 시 로컬 반환
     try { return JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch { return []; }
   }
 }
 
 async function getUserLogs(): Promise<AccessLog[]> {
-  if (!isSupabaseConfigured) return [];
+  if (!isMongoDBConfigured) return [];
   try {
-    const { data, error } = await supabaseClient
-      .from('logs')
-      .select('*')
-      .eq('type', 'user')
-      .order('timestamp', { ascending: false })
-      .limit(500);
+    const mongo = await getMongoClient();
+    if (!mongo) return [];
+    
+    const data = await mongo.db.collection('logs').find(
+      { type: 'user' },
+      // @ts-ignore
+      { sort: { timestamp: -1 }, limit: 500 }
+    );
       
-    if (error) throw error;
     return (data || []).map((l: any) => ({
       timestamp: new Date(l.timestamp).getTime(),
-      userAgent: l.user_agent,
+      userAgent: l.user_agent || l.userAgent,
       screen: l.screen,
       action: l.action,
       details: l.details
     }));
   } catch {
-    // DB 실패 시 로컬 반환
     try { return JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch { return []; }
   }
 }
@@ -2527,10 +2563,14 @@ async function init() {
 document.addEventListener('DOMContentLoaded', () => {
   init().catch(err => console.error('초기화 실패:', err));
   
-  // 자동 갱신: 30초마다 서버 목록 다시 로드
-  setInterval(() => {
-    loadServers();
-    applyFilters();
-    console.log('✅ 서버 목록 자동 갱신 완료');
+  // 자동 갱신: 30초마다 서버 목록 다시 로딩 (Watch 실패 대비)
+  setInterval(async () => {
+    const newServers = await loadServers();
+    if (newServers.length > 0) {
+      servers = newServers;
+      applyFilters();
+      refreshAdminDashboardIfOpen();
+      console.log('✅ 서버 목록 자동 갱신 완료');
+    }
   }, 30000); // 30초
 });
