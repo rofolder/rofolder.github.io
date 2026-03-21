@@ -1171,10 +1171,10 @@ function openPromoBanner() {
           body: JSON.stringify({
             content: '<@1312208363358126183> 🚀 **새로운 로샵 등록 요청이 도착했습니다!**',
             embeds: [{
-              title: '💎 RoFolder 프리미엄 등록 요청',
+              title: '💎 RoFolder 서버 등록 요청',
               description: `**${sanitizeDiscordText(nameInput)}** 커뮤니티의 홍보 신청이 접수되었습니다.`,
               color: 0x6366f1,
-              thumbnail: { url: iconInput || config.siteLogo },
+              thumbnail: { url: selectedIconFile ? (window.location.origin + config.siteLogo) : (iconData.startsWith('http') ? iconData : (window.location.origin + config.siteLogo)) },
               fields: [
                 { name: '🆔 신청 ID', value: `\`${newServer.id}\``, inline: true },
                 { name: '⏳ 현재 상태', value: '`승인 대기 중`', inline: true },
