@@ -2936,7 +2936,8 @@ async function showIPApprovalUI(ip: string) {
 /** 2단계: Discord OAuth2 시작 */
 function initiateDiscordLogin() {
   const clientId = config.discordClientId;
-  const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
+  // 디스코드 포털에 등록된 정확한 Redirect URI로 고정 (오류 방지)
+  const redirectUri = encodeURIComponent('https://rofolder.kro.kr/');
   const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=identify`;
   showToast('🎮 디스코드 인증을 시작합니다...', 'success');
   setTimeout(() => { window.location.href = authUrl; }, 900);
