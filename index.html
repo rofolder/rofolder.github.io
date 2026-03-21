@@ -3,10 +3,58 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/png" href="/logo.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="/src/style.css">
-  <title>로폴더 (Rofolder) - 유저를 위한 디스코드 서버 커뮤니티</title>
+
+  <!-- ===== SEO 핵심 =====  -->
+  <title>로폴더 (Rofolder) - 디스코드 서버 모음 커뮤니티 | 한국 최대 로샵 플랫폼</title>
+  <meta name="description" content="로폴더(Rofolder)는 한국 최대 디스코드 서버 모음 커뮤니티입니다. 게임, 개발, 판매, RP, 커뮤니티 등 다양한 디스코드 서버를 한눈에 찾고 홍보하세요." />
+  <meta name="keywords" content="로폴더, rofolder, 디스코드 서버, 디스코드 커뮤니티, 디스코드 서버 모음, 로샵, 한국 디스코드, 디코 서버 추천, 디스코드 게임 서버, 디스코드 RP 서버" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="RoFolder Team" />
+  <link rel="canonical" href="https://rofolder.kro.kr/" />
+
+  <!-- ===== Open Graph (카카오, 페이스북 공유) ===== -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://rofolder.kro.kr/" />
+  <meta property="og:title" content="로폴더 (Rofolder) - 디스코드 서버 모음 커뮤니티" />
+  <meta property="og:description" content="한국 최대 디스코드 서버 모음 커뮤니티. 게임·개발·판매·커뮤니티 서버를 한눈에 찾고 등록하세요." />
+  <meta property="og:image" content="https://rofolder.kro.kr/logo.png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:locale" content="ko_KR" />
+  <meta property="og:site_name" content="로폴더 Rofolder" />
+
+  <!-- ===== Twitter Card ===== -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="로폴더 (Rofolder) - 디스코드 서버 모음" />
+  <meta name="twitter:description" content="한국 최대 디스코드 서버 모음 커뮤니티. 지금 바로 서버를 찾아보세요." />
+  <meta name="twitter:image" content="https://rofolder.kro.kr/logo.png" />
+
+  <!-- ===== 파비콘 ===== -->
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="apple-touch-icon" href="/logo.png" />
+
+  <!-- ===== Schema.org 구조화 데이터 ===== -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "로폴더 Rofolder",
+    "alternateName": "로폴더",
+    "url": "https://rofolder.kro.kr/",
+    "description": "한국 최대 디스코드 서버 모음 커뮤니티 플랫폼",
+    "inLanguage": "ko",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://rofolder.kro.kr/?search={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+
+  <!-- ===== 성능: Google Fonts 최적화 ===== -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 </head>
 
 <body>
@@ -18,42 +66,35 @@
     <!-- 모달 시스템 -->
     <div id="modal-container" class="modal-overlay hidden">
       <div id="modal-content" class="modal-box glass">
-        <!-- 동적으로 내용이 채워짐 -->
       </div>
     </div>
 
     <!-- 상세 모달 컨테이너 -->
     <div id="detail-modal-container" class="modal-overlay hidden">
       <div id="detail-modal-content" class="modal-box glass">
-        <!-- 상세 모달 내용이 동적으로 채워짐 -->
       </div>
     </div>
 
     <!-- 등록 모달 컨테이너 -->
     <div id="register-modal-container" class="modal-overlay hidden">
       <div id="register-modal-content" class="modal-box glass">
-        <!-- 등록 모달 내용이 동적으로 채워짐 -->
       </div>
     </div>
 
     <!-- 관리자 대시보드 -->
     <div id="admin-modal-container" class="modal-overlay hidden">
       <div id="admin-modal-content" class="modal-box glass admin-dashboard">
-        <!-- 관리자 대시보드 내용이 동적으로 채워짐 -->
       </div>
     </div>
 
     <!-- 문의 모달 컨테이너 -->
     <div id="inquiry-modal-container" class="modal-overlay hidden">
       <div id="inquiry-modal-content" class="modal-box glass">
-        <!-- 문의 모달 내용이 동적으로 채워짐 -->
       </div>
     </div>
 
     <!-- 푸터 컨테이너 -->
-    <footer id="footer-container">
-      <!-- 푸터 내용이 동적으로 채워짐 -->
-    </footer>
+    <footer id="footer-container"></footer>
 
     <script type="module" src="/src/main.ts"></script>
 </body>

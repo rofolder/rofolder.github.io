@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# 관리자 접근 막기
+Disallow: /?admin
+Disallow: /?approve_ip
+
+Sitemap: https://rofolder.kro.kr/sitemap.xml
