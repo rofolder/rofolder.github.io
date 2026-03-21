@@ -1758,3 +1758,81 @@ footer {
     transform: scale(1) translateY(0);
   }
 }
+
+/* ===== 관리자 대시보드 전용 스타일 ===== */
+
+.admin-tab-bar {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-tab-btn {
+  padding: 0.55rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.6rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.admin-tab-btn:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: var(--text-primary);
+}
+
+.admin-tab-btn.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #a5b4fc;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.3rem;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.admin-tab-btn.active .tab-badge {
+  background: rgba(99, 102, 241, 0.8);
+}
+
+/* 관리자 서버 카드 개선 */
+#admin-servers-container .server-card {
+  margin-bottom: 1rem !important;
+  padding: 1.2rem !important;
+  border-radius: 0.8rem !important;
+  transition: all 0.2s ease;
+}
+
+#admin-servers-container .server-card:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  transform: translateY(-1px);
+}
+
+/* IP 승인 오버레이 */
+#ip-approval-overlay .modal-box {
+  animation: slideInScale 0.3s ease;
+}

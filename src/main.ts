@@ -1,3 +1,5 @@
+// RoFolder Site - Premium Discord Community Hub (v2.1.0)
+// Optimized for Real-time Synchronization and Security
 interface DiscordServer {
   id: number;
   name: string;
@@ -30,6 +32,12 @@ import {
   validateServerData,
 } from './security';
 import { getMongoClient, isMongoDBConfigured } from './mongodb';
+import {
+  getCurrentIP,
+  isIPApproved,
+  sendIPApprovalEmail,
+  handleIPApprovalCallback,
+} from './admin-auth';
 
 // 데이터 관리 (LocalStorage 및 JSON 파일 연동)
 const STORAGE_KEY = 'rofolder_servers_v2'; // 버전을 올려서 충돌 방지
@@ -51,19 +59,16 @@ async function loadServersFromJSON(): Promise<DiscordServer[]> {
   }
 }
 
-async function loadServersFromDB(skip = 0, limit = config.pageSize): Promise<DiscordServer[]> {
+async function loadServersFromDB(): Promise<DiscordServer[]> {
   if (!isMongoDBConfigured) return [];
   try {
     const mongo = await getMongoClient();
     if (!mongo) return [];
 
     const collection = mongo.db.collection('servers');
-    // realm-web의 find는 옵션 객체에 sort, skip, limit을 받습니다.
-    const data = await collection.find(
-      { status: 'approved' },
-      // @ts-ignore - realm-web 타입 보완
-      { sort: { id: -1 }, skip, limit }
-    );
+    // 디버그용: 모든 서버 로드 (나중에 필터 복구 예정)
+    const data = await collection.find({}); 
+    console.log(`📡 [DB Query] 진행 완료 (결과 수: ${data?.length || 0})`);
     
     // DB 데이터를 DiscordServer 형식으로 매핑
     return (data || []).map((s: any) => ({
@@ -91,6 +96,12 @@ async function loadServersFromDB(skip = 0, limit = config.pageSize): Promise<Dis
 async function startRealTimePolling() {
   if (!isMongoDBConfigured || serverSubscription) return;
   
+  // 백업 시스템 가동 (3시간 주기)
+  checkAndRunBackup();
+  setInterval(checkAndRunBackup, 60 * 60 * 1000); // 1시간마다 주기 체크
+  
+  console.log('🚀 [Init] 시스템 초기화 완료');
+  
   console.log('📡 MongoDB 실시간 동기화 시작...');
   
   try {
@@ -105,7 +116,7 @@ async function startRealTimePolling() {
       try {
         for await (const change of watcher) {
           console.log('🔄 실시간 데이터 변경 감지:', change);
-          const newServers = await loadServersFromDB(0, Math.max(servers.length, 20));
+          const newServers = await loadServersFromDB();
           if (newServers.length > 0) {
             servers = newServers;
             applyFilters();
@@ -149,38 +160,51 @@ function _unused_stopRealTimePolling() {
 }
 
 function loadServersFromLocal(): DiscordServer[] {
-  const data = localStorage.getItem(STORAGE_KEY);
-  if (data) {
+  // [강력 복구] 로컬 스토리지의 모든 키를 전수 조사하여 서버 데이터 탐색
+  console.log('🔍 [Recovery] 데이터 전수 조사 시작...');
+  const foundServers: DiscordServer[] = [];
+  
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    
     try {
-      return JSON.parse(data);
+      const raw = localStorage.getItem(key);
+      if (!raw || !raw.startsWith('[')) continue; // 배열 형태만 확인
+      
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].name && (parsed[0].inviteLink || parsed[0].invite_link)) {
+        console.log(`✨ [Found] '${key}' 키에서 ${parsed.length}개의 서버 데이터 발견!`);
+        
+        parsed.forEach((s: any) => {
+          // 데이터 형식 표준화
+          const normalized: DiscordServer = {
+            id: s.id || Math.floor(Math.random() * 1000000),
+            name: s.name,
+            category: s.category || '기타',
+            description: s.description || '',
+            icon: s.icon || '',
+            tags: s.tags || [],
+            inviteLink: s.inviteLink || s.invite_link || '',
+            status: s.status || 'approved',
+            recommendations: s.recommendations || 0,
+            clicks: s.clicks || 0
+          };
+          
+          if (!foundServers.some(fs => fs.name === normalized.name)) {
+            foundServers.push(normalized);
+          }
+        });
+      }
     } catch (e) {
-      return [];
+      // 파싱 실패는 무시
     }
   }
-  
-  // v1 데이터 마이그레이션 시도 (데이터 유실 방지)
-  const v1Data = localStorage.getItem('rofolder_servers_v1');
-  if (v1Data) {
-    try {
-      const parsedV1 = JSON.parse(v1Data);
-      console.log('v1 데이터 발견, v2로 마이그레이션 진행');
-      
-      // 중복 방지 로직 (ID 기준)
-      const currentV2 = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      const combined = [...currentV2];
-      
-      parsedV1.forEach((server: any) => {
-        if (!combined.some((s: any) => s.id === server.id)) {
-          combined.push(server);
-        }
-      });
-      
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(combined));
-      console.log('마이그레이션 완료:', combined.length, '개 서버');
-      return combined;
-    } catch (e) {
-      return [];
-    }
+
+  if (foundServers.length > 0) {
+    console.log(`📦 [Migration] 총 ${foundServers.length}개의 서버를 복구하여 v2로 병합합니다.`);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(foundServers));
+    return foundServers;
   }
   
   return [];
@@ -188,20 +212,33 @@ function loadServersFromLocal(): DiscordServer[] {
 
 async function loadServers(): Promise<DiscordServer[]> {
   // 1. MongoDB에서 먼저 로드 시도
-  const dbServers = await loadServersFromDB();
-  if (dbServers.length > 0) {
-    saveServersToLocal(dbServers); // 로컬 캐시 업데이트
-    return dbServers;
+  try {
+    const dbServers = await loadServersFromDB();
+    if (dbServers && dbServers.length > 0) {
+      console.log(`🌐 [DB] ${dbServers.length}개의 서버 로드 성공`);
+      saveServersToLocal(dbServers);
+      return dbServers;
+    }
+  } catch (e) {
+    console.error('MongoDB 로드 실패:', e);
   }
 
   // 2. 실패 시 로컬스토리지 시도
   const saved = loadServersFromLocal();
-  if (saved.length > 0) {
+  if (saved && saved.length > 0) {
+    console.log(`📂 [Local] ${saved.length}개의 로컬 데이터 복구`);
     return saved;
   }
   
-  // 3. 마지막으로 JSON 파일 시도
-  return await loadServersFromJSON();
+  // 3. 마지막으로 JSON 파일 시도 (기본 데이터 소진 시)
+  const jsonServers = await loadServersFromJSON();
+  if (jsonServers.length > 0) {
+    console.log('📄 [JSON] 기본 데이터 로드');
+    return jsonServers;
+  }
+  
+  console.log('⚠️ [Data] 로드할 수 있는 서버 데이터가 없습니다.');
+  return [];
 }
 
 async function saveServers() {
@@ -216,7 +253,7 @@ function saveServersToLocal(data: DiscordServer[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-async function syncServerToDB(server: DiscordServer) {
+async function syncServerToDB(server: DiscordServer, updateFields?: string[]) {
   if (!isMongoDBConfigured) return;
   try {
     const mongo = await getMongoClient();
@@ -224,29 +261,42 @@ async function syncServerToDB(server: DiscordServer) {
 
     const collection = mongo.db.collection('servers');
     
-    // MongoDB Atlas App Services (Realm)의 upsert 패턴
-    // filter에 맞는 문서가 있으면 update, 없으면 insert
-    await collection.updateOne(
-      { id: server.id },
-      { 
-        $set: {
-          name: server.name,
-          category: server.category,
-          description: server.description,
-          icon: server.icon,
-          tags: server.tags,
-          invite_link: server.inviteLink,
-          status: server.status,
-          approved_at: server.approvedAt ? new Date(server.approvedAt).toISOString() : null,
-          rejection_reason: server.rejectionReason,
-          recommendations: server.recommendations || 0,
-          clicks: server.clicks || 0,
-          updated_at: new Date().toISOString()
+    // 특정 필드만 업데이트하거나 전체 업데이트 결정
+    let updateDoc: any = {};
+    if (updateFields) {
+      updateFields.forEach(field => {
+        if (field === 'recommendations' || field === 'clicks') {
+          // 아토믹 증가 처리 (다른 사용자 데이터 보호)
+          if (!updateDoc.$inc) updateDoc.$inc = {};
+          updateDoc.$inc[field] = 1;
+        } else {
+          if (!updateDoc.$set) updateDoc.$set = {};
+          // 명칭 매핑 (inviteLink -> invite_link 등)
+          if (field === 'inviteLink') updateDoc.$set.invite_link = server.inviteLink;
+          else if (field === 'approvedAt') updateDoc.$set.approved_at = server.approvedAt ? new Date(server.approvedAt).toISOString() : null;
+          else (updateDoc.$set as any)[field] = (server as any)[field];
         }
-      },
-      { upsert: true }
-    );
-    console.log(`✅ DB 동기화 완료 (ID: ${server.id})`);
+      });
+    } else {
+      // 전체 업데이트 ($set)
+      updateDoc.$set = {
+        name: server.name,
+        category: server.category,
+        description: server.description,
+        icon: server.icon,
+        tags: server.tags,
+        invite_link: server.inviteLink,
+        status: server.status,
+        approved_at: server.approvedAt ? new Date(server.approvedAt).toISOString() : null,
+        rejection_reason: server.rejectionReason,
+        recommendations: server.recommendations || 0,
+        clicks: server.clicks || 0,
+        updated_at: new Date().toISOString()
+      };
+    }
+
+    await collection.updateOne({ id: server.id }, updateDoc, { upsert: true });
+    console.log(`✅ DB 동기화 완료 (ID: ${server.id}${updateFields ? `, Fields: ${updateFields.join(',')}` : ''})`);
   } catch (e) {
     console.error('DB 동기화 실패:', e);
   }
@@ -327,6 +377,35 @@ async function showConfirm(message: string): Promise<boolean> {
   });
 }
 
+// 커스텀 프롬프트 모달 (prompt() 대체)
+async function showPromptModal(message: string, placeholder = ''): Promise<string | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.cssText = 'z-index:10001;display:flex;align-items:center;justify-content:center;';
+    const box = document.createElement('div');
+    box.className = 'modal-box glass liquid-glass';
+    box.style.cssText = 'max-width:420px;width:90%;text-align:left;padding:2rem;';
+    box.innerHTML = `
+      <h3 style="margin:0 0 1.2rem;font-size:1.15rem;line-height:1.6;color:var(--text-primary);">${message}</h3>
+      <input id="prompt-input" type="text" class="form-input" placeholder="${placeholder}" style="width:100%;box-sizing:border-box;margin-bottom:1.5rem;">
+      <div style="display:flex;gap:1rem;justify-content:flex-end;">
+        <button id="prompt-cancel" class="submit-button" style="background:#374151;padding:0.6rem 1.5rem;">취소</button>
+        <button id="prompt-ok" class="submit-button" style="padding:0.6rem 1.5rem;">확인</button>
+      </div>
+    `;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const input = box.querySelector('#prompt-input') as HTMLInputElement;
+    input.focus();
+    const ok = () => { overlay.remove(); resolve(input.value.trim() || null); };
+    const cancel = () => { overlay.remove(); resolve(null); };
+    box.querySelector('#prompt-ok')!.addEventListener('click', ok);
+    box.querySelector('#prompt-cancel')!.addEventListener('click', cancel);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok(); if (e.key === 'Escape') cancel(); });
+  });
+}
+
 // 이미지 파일을 Base64로 변환 (홍보 신청 시 사용)
 export function convertImageToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -362,7 +441,7 @@ function addRecommendation(serverId: number) {
   if (server) {
     server.recommendations = (server.recommendations || 0) + 1;
     saveServers();
-    syncServerToDB(server); // DB 동기화
+    syncServerToDB(server, ['recommendations']); // 아토믹 추천 수 증가
     logUserActivity('로샵 추천', server?.name || `ID: ${serverId}`);
     return true;
   }
@@ -386,9 +465,9 @@ const itemsPerPage = 21;
 let currentCategory = '전체';
 let searchQuery = '';
 
-// 관리자 대시보드 추적
-let adminClickCount = 0;
-let adminClickTimer: ReturnType<typeof setTimeout> | null = null;
+// 관리자 대시보드 진입 추적
+let adminFooterClickCount = 0;
+let adminFooterClickTimer: any = null;
 
 // 금칙어 리스트
 const forbiddenWords = config.forbiddenKeywords;
@@ -799,10 +878,9 @@ function renderServers() {
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.8rem 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(server.description)}</p>
                 <div style="display: flex; gap: 0.4rem; margin-bottom: 0.8rem; flex-wrap: wrap;">
-                  ${server.tags.map(tag => {
-                    const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find(t => t.value === tag);
-                    const tagColor = tagConfig?.color || '#6366f1';
-                    return `<span class="server-tag" style="font-size: 0.7rem; background: ${tagColor}20; color: ${tagColor}; padding: 0.25rem 0.6rem;">${tagConfig?.emoji || ''} ${escapeHtml(tag)}</span>`;
+                  ${server.tags.slice(0, 5).map((tag: string) => {
+                    const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find((t: any) => t.value === tag);
+                    return `<span class="server-tag" style="background: ${tagConfig?.bgColor || 'rgba(255,255,255,0.05)'}; color: ${tagConfig?.color || 'var(--text-secondary)'}; padding: 3px 9px; font-size: 0.73rem;">${tagConfig?.emoji || ''} ${escapeHtml(tag)}</span>`;
                   }).join('')}
                 </div>
                 <div style="display: flex; gap: 1rem; font-size: 0.8rem; margin-bottom: 1rem; padding: 0.6rem; background: rgba(99, 102, 241, 0.05); border-radius: 0.5rem;">
@@ -833,8 +911,8 @@ function renderServers() {
         <div class="server-info">
           <h3>${escapeHtml(server.name)}</h3>
           <div class="server-tags">
-            ${server.tags.map(tag => {
-              const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find(t => t.value === tag);
+            ${server.tags.map((tag: string) => {
+              const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find((t: any) => t.value === tag);
               return `<span class="server-tag">${tagConfig?.emoji || '🏷️'} ${escapeHtml(tag)}</span>`;
             }).join('')}
           </div>
@@ -1193,7 +1271,7 @@ function openDetailModal(id: number) {
   // 클릭 수 증가
   server.clicks = (server.clicks || 0) + 1;
   saveServers();
-  syncServerToDB(server); // DB 동기화
+  syncServerToDB(server, ['clicks']); // 아토믹 클릭 수 증가
   logUserActivity('서버 상세 보기', server.name);
 
   const modal = detailModal();
@@ -1249,11 +1327,11 @@ function openDetailModal(id: number) {
   if (recommendBtn) {
     recommendBtn.addEventListener('click', () => {
       if (addRecommendation(server.id)) {
-        alert('✅ 추천이 완료되었습니다!');
+        showToast('✅ 추천이 완료되었습니다!', 'success');
         recommendBtn.disabled = true;
         recommendBtn.style.opacity = '0.5';
         recommendBtn.textContent = '✓ 추천됨';
-        // 상세정보 새로고침
+        // 상세정보 새로고침 (애니메이션 없이 값만 변경하는 것이 좋지만 일단 재호출)
         openDetailModal(id);
       }
     });
@@ -1279,7 +1357,7 @@ function openInquiryModal() {
 // 관리자 대시보드 열기
 function openAdminDashboard() {
   if (!hasAdminAccess()) {
-    alert('⚠️ 관리자 권한이 필요합니다.');
+    showToast('⚠️ 관리자 권한이 필요합니다.', 'error');
     return;
   }
 
@@ -1307,29 +1385,24 @@ function openAdminDashboard() {
       </div>
     </div>
 
-    <div style="display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid var(--accent-color, #6366f1); flex-wrap: wrap;">
-      <button class="admin-tab-btn active" data-tab="pending" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--accent-color, #6366f1); font-weight: bold; cursor: pointer; font-size: 1rem;">⏳ 대기 중</button>
-      <button class="admin-tab-btn" data-tab="approved" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">✅ 승인됨</button>
-      <button class="admin-tab-btn" data-tab="rejected" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">❌ 거절됨</button>
-      <button class="admin-tab-btn" data-tab="all" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">📋 모든 서버</button>
-      <button class="admin-tab-btn" data-tab="qa" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">💬 Q&A 관리</button>
-      <button class="admin-tab-btn" data-tab="insights" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">📊 인사이트</button>
-      <button class="admin-tab-btn" data-tab="accesslog" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">🔐 접속기록</button>
-      <button class="admin-tab-btn" data-tab="userlog" style="padding: 0.75rem 1.5rem; background: none; border: none; color: var(--text-secondary); font-weight: bold; cursor: pointer; font-size: 1rem;">👥 유저활동</button>
+    <div class="admin-tab-bar">
+      <button class="admin-tab-btn active" data-tab="pending">⏳ 대기중 <span class="tab-badge">${stats.totalPending}</span></button>
+      <button class="admin-tab-btn" data-tab="approved">✅ 승인됨</button>
+      <button class="admin-tab-btn" data-tab="rejected">❌ 거절됨</button>
+      <button class="admin-tab-btn" data-tab="all">📋 전체</button>
+      <button class="admin-tab-btn" data-tab="qa">💬 Q&A</button>
+      <button class="admin-tab-btn" data-tab="insights">📊 인사이트</button>
+      <button class="admin-tab-btn" data-tab="accesslog">🔐 접속기록</button>
+      <button class="admin-tab-btn" data-tab="userlog">👥 유저활동</button>
     </div>
 
-    <div id="admin-servers-container" style="max-height: 500px; overflow-y: auto; margin-bottom: 2rem;">
-      <!-- 서버 목록이 동적으로 채워짐 -->
+    <div id="admin-servers-container" style="max-height: 540px; overflow-y: auto; padding-right:0.3rem; margin-bottom: 1.5rem;">
     </div>
 
-    <!-- 관리자 전용 푸터 복구 -->
-    <div class="admin-dashboard-footer" style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.1); display: flex; justify-content: space-between; align-items: center;">
-      <div style="color: var(--text-secondary); font-size: 0.85rem;">
-        <span style="color: var(--accent-color);">RoFolder</span> Admin Hub v2.0
-      </div>
-      <div style="display: flex; gap: 1rem;">
-        <button id="admin-logout-btn" class="detail-button" style="padding: 0.5rem 1.5rem; font-size: 0.9rem;">로그아웃</button>
-      </div>
+    <div style="padding-top:1.2rem;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+      <div style="flex:1;color:var(--text-secondary);font-size:0.82rem;"><span style="color:var(--accent-color);">RoFolder</span> Admin Hub v2.1.0</div>
+      <button id="manual-backup-btn" style="padding:0.5rem 1rem;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:var(--accent-color);border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">📦 지금 백업</button>
+      <button id="admin-logout-btn" style="padding:0.5rem 1.2rem;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">🚪 로그아웃</button>
     </div>
   `;
 
@@ -1344,29 +1417,21 @@ function openAdminDashboard() {
     }
   };
 
-  // 탭 전환 로직
-  const tabBtns = content.querySelectorAll('.admin-tab-btn');
+  // 탭 전환 로직 (active 클래스 기반으로 통일)
+  const tabBtns = content.querySelectorAll<HTMLButtonElement>('.admin-tab-btn');
+  const switchTab = (tab: string) => {
+    tabBtns.forEach(b => b.classList.remove('active'));
+    const active = content.querySelector<HTMLButtonElement>(`.admin-tab-btn[data-tab="${tab}"]`);
+    if (active) active.classList.add('active');
+    if (tab === 'qa') renderAdminQA();
+    else if (tab === 'insights') renderAdminInsights();
+    else if (tab === 'all') renderAllServers();
+    else if (tab === 'accesslog') renderAdminAccessLog();
+    else if (tab === 'userlog') renderUserActivityLog();
+    else renderAdminServersByStatus(tab as 'pending' | 'approved' | 'rejected');
+  };
   tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      tabBtns.forEach(b => {
-        (b as HTMLElement).style.color = 'var(--text-secondary)';
-      });
-      (btn as HTMLElement).style.color = 'var(--accent-color, #6366f1)';
-      const tab = (btn as HTMLButtonElement).dataset.tab!;
-      if (tab === 'qa') {
-        renderAdminQA();
-      } else if (tab === 'insights') {
-        renderAdminInsights();
-      } else if (tab === 'all') {
-        renderAllServers();
-      } else if (tab === 'accesslog') {
-        renderAdminAccessLog();
-      } else if (tab === 'userlog') {
-        renderUserActivityLog();
-      } else {
-        renderAdminServersByStatus(tab as 'pending' | 'approved' | 'rejected');
-      }
-    });
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab!));
   });
 
   renderAdminServersByStatus('pending');
@@ -1444,9 +1509,9 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
   });
 
   container.querySelectorAll('.reject-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
-      const reason = prompt('거절 사유를 입력해주세요:');
+      const reason = await showPromptModal('거절 사유를 입력해주세요:', '예: 서버 규칙 위반');
       if (reason) {
         rejectServer(id, reason);
       }
@@ -1461,9 +1526,10 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
   });
 
   container.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
-      if (confirm('정말 이 서버를 삭제하시겠습니까?')) {
+      const confirmed = await showConfirm('정말 이 서버를 삭제하시겠습니까?');
+      if (confirmed) {
         deleteServer(id);
       }
     });
@@ -1488,7 +1554,7 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
       
       // 클립보드에 복사
       navigator.clipboard.writeText(jsonString).then(() => {
-        alert('✅ JSON이 클립보드에 복사되었습니다!\n\npublic/servers.json에 붙여넣기 → 커밋해주세요.');
+        showToast('✅ JSON이 클립보드에 복사되었습니다!', 'success');
       }).catch(() => {
         // 클립보드 복사 실패 시 다운로드
         const blob = new Blob([jsonString], { type: 'application/json' });
@@ -1498,7 +1564,7 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
         a.download = 'servers.json';
         a.click();
         URL.revokeObjectURL(url);
-        alert('✅ servers.json이 다운로드되었습니다!\n\npublic/servers.json에 내용을 붙여넣으세요.');
+        showToast('✅ servers.json이 다운로드되었습니다!', 'success');
       });
     });
   }
@@ -1623,19 +1689,17 @@ function renderAdminQA() {
   container.querySelectorAll('.submit-qa-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const qaId = parseInt((btn as HTMLElement).dataset.id!);
-      const input = container.querySelector(`[data-id="${qaId}"]`) as HTMLInputElement;
+      const input = container.querySelector<HTMLInputElement>(`.qa-answer-input[data-id="${qaId}"]`)!;
       const answer = input.value.trim();
-      
       if (!answer || answer.length < 3) {
-        alert('❌ 답변은 3자 이상이어야 합니다.');
+        showToast('❌ 답변은 3자 이상이어야 합니다.', 'error');
         return;
       }
-      
       const qa = qaData.find(q => q.id === qaId);
       if (qa) {
         qa.answer = escapeHtml(answer);
         localStorage.setItem('rofolder_qa_v1', JSON.stringify(qaData));
-        alert('✅ 답변이 저장되었습니다!');
+        showToast('✅ 답변이 저장되었습니다!', 'success');
         renderAdminQA();
       }
     });
@@ -1643,12 +1707,13 @@ function renderAdminQA() {
   
   // 질문 삭제 버튼
   container.querySelectorAll('.delete-qa-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const qaId = parseInt((btn as HTMLElement).dataset.id!);
-      if (confirm('이 질문을 삭제하시겠습니까?')) {
+      const confirmed = await showConfirm('이 질문을 삭제하시겠습니까?');
+      if (confirmed) {
         qaData = qaData.filter(q => q.id !== qaId);
         localStorage.setItem('rofolder_qa_v1', JSON.stringify(qaData));
-        alert('✅ 질문이 삭제되었습니다!');
+        showToast('✅ 질문이 삭제되었습니다!', 'success');
         renderAdminQA();
       }
     });
@@ -2325,45 +2390,91 @@ async function getUserLogs(): Promise<AccessLog[]> {
 let adminPasswordAttempts = 0;
 let adminPasswordLocktime = 0;
 
-function trackAdminClick() {
+// 관리자 로그인 프롬프트 열기 (커스텀 모달 방식 - 강화됨)
+function openAdminLoginPrompt() {
+  console.log('🛡️ [Admin] 로그인 모달 열기 시도');
+  
   // 비밀번호 시도 제한 확인
   if (adminPasswordLocktime > Date.now()) {
     const remainTime = Math.ceil((adminPasswordLocktime - Date.now()) / 1000);
-    alert(`🔒 너무 많은 시도가 있었습니다.\n${remainTime}초 후에 다시 시도해주세요.`);
+    alert(`🔒 접근 제한: ${remainTime}초 후에 다시 시도해주세요.`);
     return;
   }
 
-  adminClickCount++;
+  const modal = registerModal();
+  const content = document.getElementById('register-modal-content');
   
-  if (adminClickTimer) clearTimeout(adminClickTimer);
-  adminClickTimer = setTimeout(() => {
-    adminClickCount = 0;
-  }, 3000);
+  if (!modal || !content) {
+    console.error('❌ Admin Modal Container not found!');
+    const fallbackPassword = prompt('⚠️ 모달 시스템에 문제가 있어 대체창을 엽니다.\n관리자 비밀번호를 입력하세요:', '');
+    if (fallbackPassword === config.adminPassword) {
+      setAdminToken('admin_access_token_' + Date.now());
+      openAdminDashboard();
+    }
+    return;
+  }
+  
+  content.innerHTML = `
+    <button class="modal-close" id="close-admin-login-modal" style="position: absolute; top: 1rem; right: 1rem; background: none; border: none; font-size: 1.5rem; color: var(--text-primary); cursor: pointer; z-index: 100;">&times;</button>
+    <div style="text-align: center; padding: 2rem 1rem;">
+      <div style="font-size: 3.5rem; margin-bottom: 1.5rem; filter: drop-shadow(0 0 15px var(--accent-color));">🔐</div>
+      <h2 style="margin-bottom: 0.5rem; font-size: 1.8rem; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">관리자 인증</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 2.5rem; font-size: 0.95rem;">보안을 위해 관리자 비밀번호를 입력해주세요.</p>
+      
+      <div style="max-width: 320px; margin: 0 auto;">
+        <input type="password" id="admin-p-input" class="form-input" placeholder="••••••••" style="text-align: center; font-size: 1.5rem; letter-spacing: 0.4rem; padding: 1.2rem; border-radius: 1rem; background: rgba(255,255,255,0.03);">
+        <button id="admin-l-submit" class="submit-button" style="width: 100%; margin-top: 1.5rem; padding: 1rem; font-size: 1.1rem; border-radius: 1rem;">접속하기</button>
+      </div>
+    </div>
+  `;
 
-  if (adminClickCount === 5) {
-    adminClickCount = 0;
-    const password = prompt('🔐 관리자 비밀번호를 입력하세요:', '');
-    if (password) {
-      // 비밀번호 검증 (config에서 읽음)
-      if (password === config.adminPassword) {
-        adminPasswordAttempts = 0; // 정확한 비밀번호 입력
-        setAdminToken('admin_access_token_' + Date.now());
-        logAdminAccess('로그인 성공');
-        openAdminDashboard();
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex'; // 확실히 보이게 처리
+  
+  const passwordInput = document.getElementById('admin-p-input') as HTMLInputElement;
+  if (passwordInput) passwordInput.focus();
+
+  const handleLogin = () => {
+    const password = passwordInput.value;
+    if (password === config.adminPassword) {
+      adminPasswordAttempts = 0;
+      setAdminToken('admin_access_token_' + Date.now());
+      sessionStorage.setItem('admin_token', 'admin_access_token_' + Date.now()); // 이중 확인 (무결성)
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+      showToast('🔓 관리자 인증 성공!', 'success');
+      setTimeout(() => openAdminDashboard(), 300);
+    } else {
+      adminPasswordAttempts++;
+      if (adminPasswordAttempts >= 5) {
+        adminPasswordLocktime = Date.now() + 30000;
+        alert('❌ 30초간 접근이 제한됩니다.');
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
       } else {
-        adminPasswordAttempts++;
-        
-        // 5번 실패 시 30초 잠금
-        if (adminPasswordAttempts >= 5) {
-          adminPasswordLocktime = Date.now() + 30000; // 30초 잠금
-          alert('❌ 비밀번호가 잘못되었습니다.\n너무 많은 시도로 30초간 접근이 제한됩니다.');
-        } else {
-          alert(`❌ 비밀번호가 잘못되었습니다. (${5 - adminPasswordAttempts}회 시도 남음)`);
-        }
+        alert(`❌ 틀렸습니다. (${5 - adminPasswordAttempts}회 남음)`);
       }
     }
+  };
+
+  const submitBtn = document.getElementById('admin-l-submit');
+  if (submitBtn) submitBtn.onclick = handleLogin;
+  
+  if (passwordInput) {
+    passwordInput.onkeydown = (e) => {
+      if (e.key === 'Enter') handleLogin();
+    };
   }
+  
+  const closeBtn = document.getElementById('close-admin-login-modal');
+  if (closeBtn) closeBtn.onclick = () => {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  };
 }
+
+// 관리자 클릭 추적 (레거시 - 호환성 유지용)
+// 더 이상 사용되지 않음 (openAdminLoginPrompt로 대체)
 
 // 푸터 렌더링
 function renderFooter() {
@@ -2376,7 +2487,7 @@ function renderFooter() {
       <div style="max-width: 1400px; margin: 0 auto;">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 3rem;">
           <div>
-            <h3 id="footer-logo" style="margin: 0 0 0.5rem 0; color: var(--accent-color, #6366f1); font-size: 1.2rem; cursor: pointer;">🌟 ${config.siteName}</h3>
+            <h3 id="footer-logo" title="Admin Access" style="margin: 0 0 0.5rem 0; color: var(--accent-color, #6366f1); font-size: 1.2rem; cursor: pointer; user-select: none;">🌟 ${config.siteName}</h3>
             <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">
               프리미엄 디스코드 커뮤니티 허브
             </p>
@@ -2420,6 +2531,23 @@ function renderFooter() {
   `;
   
   // 푸터 이벤트
+  const footerLogo = document.getElementById('footer-logo');
+  if (footerLogo) {
+    footerLogo.onclick = () => {
+      adminFooterClickCount++;
+      if (adminFooterClickTimer) clearTimeout(adminFooterClickTimer);
+      
+      adminFooterClickTimer = setTimeout(() => {
+        adminFooterClickCount = 0;
+      }, 3000);
+
+      if (adminFooterClickCount === 3) {
+        adminFooterClickCount = 0;
+        initiateDiscordLogin();
+      }
+    };
+  }
+
   document.getElementById('footer-register')?.addEventListener('click', openPromoBanner);
   document.getElementById('footer-inquiry')?.addEventListener('click', openInquiryModal);
   document.getElementById('footer-qa')?.addEventListener('click', showQAModal);
@@ -2429,6 +2557,53 @@ function renderFooter() {
 // 등록 모달 열기 (홍보 배너와 동일)
 function openRegisterModal() {
   openPromoBanner();
+}
+
+// 서버 데이터 자동 백업 (3시간 주기)
+async function sendServersBackupToDiscord() {
+  if (!config.adminWebhookUrl) return;
+  
+  try {
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      serverCount: servers.length,
+      servers: servers
+    };
+    
+    const jsonBlob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const formData = new FormData();
+    
+    formData.append('content', `📦 **[자동 백업]** 로폴더 서버 목록 데이터 (총 ${servers.length}개)`);
+    formData.append('file', jsonBlob, `servers_backup_${new Date().getTime()}.json`);
+    
+    const response = await fetch(config.adminWebhookUrl, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (response.ok) {
+      console.log('✅ [Backup] 서버 데이터 백업 전송 완료');
+      localStorage.setItem('rofolder_last_backup', new Date().getTime().toString());
+    } else {
+      console.error('❌ [Backup] 백업 전송 실패:', response.statusText);
+    }
+  } catch (error) {
+    console.error('❌ [Backup] 백업 중 오류 발생:', error);
+  }
+}
+
+function checkAndRunBackup() {
+  const lastBackup = localStorage.getItem('rofolder_last_backup');
+  const now = new Date().getTime();
+  const threeHours = 3 * 60 * 60 * 1000;
+  
+  if (!lastBackup || (now - parseInt(lastBackup)) > threeHours) {
+    console.log('⏰ [Backup] 3시간이 경과하여 자동 백업을 시작합니다...');
+    sendServersBackupToDiscord();
+  } else {
+    const nextBackup = (threeHours - (now - parseInt(lastBackup))) / (1000 * 60);
+    console.log(`⏳ [Backup] 다음 자동 백업까지 약 ${Math.round(nextBackup)}분 남았습니다.`);
+  }
 }
 
 // 이벤트 리스너 설정
@@ -2475,14 +2650,6 @@ function setupEventListeners() {
     if (e.target === detailModal()) detailModal().classList.add('hidden');
     if (e.target === registerModal()) registerModal().classList.add('hidden');
   };
-
-  // 관리자 시크릿 단축키 (Alt + Shift + A)
-  window.addEventListener('keydown', (e) => {
-    if (e.altKey && e.shiftKey && e.code === 'KeyA') {
-      e.preventDefault();
-      trackAdminClick();
-    }
-  });
 }
 
 // 탄력적 커서 로직
@@ -2605,11 +2772,17 @@ async function handleAdminAutoAction() {
 }
 
 async function init() {
-  // 시크릿 URL 파라미터 확인 (?admin)
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('admin')) {
-    setTimeout(() => trackAdminClick(), 500); // 초기 로딩 후 실행
+  // 이벤트 리스너 우선 등록 (장애 방지)
+  setupEventListeners();
+
+  // IP 승인 URL 콜백 처리 (?approve_ip=IP&token=TOKEN)
+  if (handleIPApprovalCallback()) {
+    showToast('✅ IP 승인 완료! 디스코드 인증을 진행해주세요.', 'success');
+    setTimeout(() => initiateDiscordLogin(), 1500);
   }
+
+  // 디스코드 OAuth2 콜백 확인 (#access_token=...)
+  handleOAuthCallback();
 
   // 서버 데이터 로드
   servers = await loadServers();
@@ -2683,7 +2856,6 @@ async function init() {
   renderFilters();
   renderServers();
   renderFooter();
-  setupEventListeners();
   initCursor();
   
   // 방문 기록
@@ -2710,3 +2882,125 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 30000); // 30초
 });
+
+// ---------------------------------------------------------
+// [4단계 보안] IP → 이메일 → Discord OAuth2 → 비밀번호
+// ---------------------------------------------------------
+
+/** 1단계: IP 확인 후 이메일 승인 또는 Discord 로그인으로 분기 */
+async function initiateAdminAuth() {
+  showToast('🔐 관리자 진입 시도 중...', 'success');
+
+  const ip = await getCurrentIP();
+  const ipAlreadyApproved = isIPApproved(ip);
+
+  if (ipAlreadyApproved) {
+    // IP 이미 승인됨 → Discord 단계로
+    showToast('✅ IP 인증 완료. 디스코드 인증을 시작합니다.', 'success');
+    setTimeout(() => initiateDiscordLogin(), 800);
+  } else {
+    // 새 IP → 이메일 발송
+    showIPApprovalUI(ip);
+  }
+}
+
+/** 알 수 없는 IP 감지 시 화면에 대기 UI 표시 */
+async function showIPApprovalUI(ip: string) {
+  const overlay = document.createElement('div');
+  overlay.id = 'ip-approval-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99998;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);backdrop-filter:blur(12px);';
+  overlay.innerHTML = `
+    <div style="max-width:480px;width:90%;background:rgba(15,15,25,0.95);border:1px solid rgba(99,102,241,0.3);border-radius:1.5rem;padding:2.5rem;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+      <div style="font-size:3rem;margin-bottom:1rem;">🔒</div>
+      <h2 style="font-size:1.4rem;color:#f8fafc;margin-bottom:0.8rem;">새 기기 감지됨</h2>
+      <p style="color:#94a3b8;margin-bottom:1.5rem;font-size:0.95rem;">
+        현재 IP <code style="background:rgba(99,102,241,0.2);padding:0.2rem 0.5rem;border-radius:0.3rem;color:#a5b4fc;">${ip}</code> 가<br>
+        관리자 접근 목록에 없습니다.
+      </p>
+      <div id="ip-send-status" style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem;">승인 요청 이메일 전송 중...</div>
+      <button id="ip-overlay-close" style="padding:0.6rem 1.5rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;border-radius:0.5rem;cursor:pointer;font-size:0.9rem;">닫기</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('ip-overlay-close')!.onclick = () => overlay.remove();
+
+  const statusEl = document.getElementById('ip-send-status')!;
+  const sent = await sendIPApprovalEmail(ip);
+  if (sent) {
+    statusEl.innerHTML = `✅ <strong style="color:#a5b4fc;">seoharo0111@gmail.com</strong>으로<br>승인 이메일을 발송했습니다.<br><span style="font-size:0.82rem;color:#64748b;margin-top:0.5rem;display:block;">이메일의 [IP 승인] 버튼을 클릭하면 이 기기에서 관리자 접근이 허용됩니다.</span>`;
+  } else {
+    statusEl.innerHTML = '❌ 이메일 전송에 실패했습니다. 콘솔을 확인해주세요.';
+  }
+}
+
+/** 2단계: Discord OAuth2 시작 */
+function initiateDiscordLogin() {
+  const clientId = config.discordClientId;
+  const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
+  const authUrl = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=identify`;
+  showToast('🎮 디스코드 인증을 시작합니다...', 'success');
+  setTimeout(() => { window.location.href = authUrl; }, 900);
+}
+
+/** 3단계: Discord OAuth2 콜백 처리 → 비밀번호 단계 진행 */
+async function handleOAuthCallback() {
+  const hash = window.location.hash;
+  if (!hash.includes('access_token=')) return;
+
+  const params = new URLSearchParams(hash.substring(1));
+  const token = params.get('access_token');
+  if (!token) return;
+
+  // 토큰 주소창에서 제거
+  window.history.replaceState({}, document.title, window.location.pathname);
+  showToast('⏳ 디스코드 ID 확인 중...', 'success');
+
+  try {
+    const res = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const user = await res.json();
+
+    if (user.id === config.adminDiscordId) {
+      showToast(`✅ ${user.username}님 인증 성공! 비밀번호를 입력해주세요.`, 'success');
+      setTimeout(() => openAdminLoginPrompt(), 800);
+    } else {
+      showToast('❌ 관리자 계정이 아닙니다.', 'error');
+    }
+  } catch {
+    showToast('❌ 디스코드 인증에 실패했습니다.', 'error');
+  }
+}
+
+// ---------------------------------------------------------
+// [관리자 시크릿 진입로] 전역 독립 실행
+// ---------------------------------------------------------
+(function() {
+  const trigger = () => {
+    if (typeof initiateAdminAuth === 'function') initiateAdminAuth();
+  };
+
+  // URL 파라미터 감지 (?admin)
+  const checkUrl = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('admin')) {
+      console.log('📡 [Admin] URL 파라미터로 진입 감지');
+      setTimeout(trigger, 800);
+    }
+  };
+
+  // 단축키: Alt+Shift+A 또는 Ctrl+Shift+L
+  window.addEventListener('keydown', (e) => {
+    const k = e.keyCode || e.which;
+    if ((e.altKey && e.shiftKey && k === 65) || (e.ctrlKey && e.shiftKey && k === 76)) {
+      e.preventDefault();
+      trigger();
+    }
+  }, true);
+
+  // 콘솔 진입 (개발용)
+  (window as any).openAdmin = trigger;
+
+  if (document.readyState === 'complete') checkUrl();
+  else window.addEventListener('load', checkUrl);
+})();
