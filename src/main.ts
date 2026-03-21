@@ -406,11 +406,39 @@ async function showPromptModal(message: string, placeholder = ''): Promise<strin
   });
 }
 
-// 이미지 파일을 Base64로 변환 (홍보 신청 시 사용)
+// 이미지 파일을 Base64로 변환 (홍보 신청 시 사용) - PNG 포맷으로 강제 변환 및 리사이징 적용
 export function convertImageToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxSize = 256; // 디스코드 썸네일 및 DB 용량 최적화를 위해 256px
+        if (width > maxSize || height > maxSize) {
+          if (width > height) {
+            height = height * (maxSize / width);
+            width = maxSize;
+          } else {
+            width = width * (maxSize / height);
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/png'));
+        } else {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -1004,7 +1032,7 @@ function openPromoBanner() {
           <div class="image-preview-container">
             <img id="promo-preview" src="https://api.dicebear.com/7.x/identicon/svg?seed=new" alt="미리보기">
           </div>
-          <input type="file" id="promo-icon-upload" accept="image/*" class="form-input" style="flex: 1;">
+          <input type="file" id="promo-icon-upload" accept=".png,.svg,.webp,image/png,image/svg+xml,image/webp" class="form-input" style="flex: 1;">
         </div>
       </div>
       <div class="form-group">
@@ -1046,16 +1074,6 @@ function openPromoBanner() {
   document.getElementById('cancel-promo')!.onclick = () => modal.classList.add('hidden');
 
   const form = document.getElementById('promo-form') as HTMLFormElement;
-  // 이미지를 Base64로 변환하는 함수
-  const convertImageToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        resolve(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
 
   const iconInput = document.getElementById('promo-icon-upload') as HTMLInputElement;
   const preview = document.getElementById('promo-preview') as HTMLImageElement;
@@ -1063,11 +1081,24 @@ function openPromoBanner() {
   // 선택된 아이콘 파일 저장
   let selectedIconFile: File | null = null;
 
-  // 아이콘 미리보기
-  iconInput.onchange = () => {
+  // 아이콘 미리보기 및 검증
+  iconInput.onchange = async () => {
     if (iconInput.files && iconInput.files[0]) {
-      selectedIconFile = iconInput.files[0];
-      preview.src = URL.createObjectURL(iconInput.files[0]);
+      const file = iconInput.files[0];
+      const allowedTypes = ['image/png', 'image/svg+xml', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('❌ 지원하지 않는 파일 형식입니다.\\nPNG, SVG, WEBP만 지원합니다.');
+        iconInput.value = '';
+        selectedIconFile = null;
+        preview.src = 'https://api.dicebear.com/7.x/identicon/svg?seed=new';
+        return;
+      }
+      selectedIconFile = file;
+      try {
+        preview.src = await convertImageToBase64(file);
+      } catch (err) {
+        preview.src = URL.createObjectURL(file);
+      }
     }
   };
 
@@ -2034,7 +2065,7 @@ function editServer(id: number) {
         </div>
         <div class="form-group" style="flex: 1;">
           <label>아이콘 변경</label>
-          <input type="file" id="icon-upload" accept="image/*" class="form-input">
+          <input type="file" id="icon-upload" accept=".png,.svg,.webp,image/png,image/svg+xml,image/webp" class="form-input">
         </div>
       </div>
       <div class="form-group">
@@ -2086,10 +2117,21 @@ function editServer(id: number) {
   const iconInput = document.getElementById('icon-upload') as HTMLInputElement;
   const preview = document.getElementById('image-preview') as HTMLImageElement;
 
-  // 아이콘 미리보기
-  iconInput.onchange = () => {
+  // 아이콘 미리보기 및 검증
+  iconInput.onchange = async () => {
     if (iconInput.files && iconInput.files[0]) {
-      preview.src = URL.createObjectURL(iconInput.files[0]);
+      const file = iconInput.files[0];
+      const allowedTypes = ['image/png', 'image/svg+xml', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('❌ 지원하지 않는 파일 형식입니다.\\nPNG, SVG, WEBP만 지원합니다.');
+        iconInput.value = '';
+        return;
+      }
+      try {
+        preview.src = await convertImageToBase64(file);
+      } catch (err) {
+        preview.src = URL.createObjectURL(file);
+      }
     }
   };
 
