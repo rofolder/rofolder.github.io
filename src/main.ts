@@ -427,9 +427,11 @@ function applyFilters() {
     // 승인된 로샵만 메인 페이지에 표시
     if (s.status !== 'approved') return false;
     
+    const isBusinessCategory = currentCategory === '사업팀';
     const matchCategory = currentCategory === '전체' || 
                           s.category === currentCategory || 
-                          s.tags.includes(currentCategory);
+                          s.tags.includes(currentCategory) ||
+                          (isBusinessCategory && s.tags.includes('사업팀(로폴더)'));
     const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                         s.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCategory && matchSearch;
@@ -448,7 +450,8 @@ function renderFilters() {
     { name: '개발', icon: '💻', className: '' },
     { name: '판매서버', icon: '💰', className: '' },
     { name: '커뮤니티', icon: '👤', className: '' },
-    { name: '파트너', icon: '💎', className: 'filter-partner' }
+    { name: '파트너', icon: '💎', className: 'filter-partner' },
+    { name: '사업팀', icon: '💼', className: 'filter-business' }
   ];
   const filterBar = document.getElementById('filter-bar')!;
   if (!filterBar) return;
@@ -796,7 +799,7 @@ function renderServers() {
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.8rem 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(server.description)}</p>
                 <div style="display: flex; gap: 0.4rem; margin-bottom: 0.8rem; flex-wrap: wrap;">
-                  ${server.tags.slice(0, 2).map(tag => {
+                  ${server.tags.map(tag => {
                     const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find(t => t.value === tag);
                     const tagColor = tagConfig?.color || '#6366f1';
                     return `<span class="server-tag" style="font-size: 0.7rem; background: ${tagColor}20; color: ${tagColor}; padding: 0.25rem 0.6rem;">${tagConfig?.emoji || ''} ${escapeHtml(tag)}</span>`;
@@ -1977,7 +1980,7 @@ function editServer(id: number) {
         <label>카테고리 선택</label>
         <div id="category-chips" class="category-chips">
           ${config.serverTags.map((tag) => `
-            <button type="button" class="chip${tag.value === server.category ? ' active' : ''}" data-value="${tag.value}">
+            <button type="button" class="chip${server.tags.includes(tag.value) || tag.value === server.category ? ' active' : ''}" data-value="${tag.value}">
               ${tag.emoji} ${tag.label}
             </button>
           `).join('')}
@@ -2025,15 +2028,22 @@ function editServer(id: number) {
     }
   };
 
-  // 카테고리 칩 선택
+  // 카테고리 칩 다중 선택 (토글 방식)
   const chips = document.querySelectorAll('.category-chips .chip');
   const catInput = document.getElementById('reg-category') as HTMLInputElement;
   chips.forEach(chip => {
     chip.addEventListener('click', (e) => {
       e.preventDefault();
-      chips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      catInput.value = (chip as HTMLButtonElement).dataset.value!;
+      chip.classList.toggle('active');
+      
+      const selected = Array.from(chips)
+        .filter(c => c.classList.contains('active'))
+        .map(c => (c as HTMLButtonElement).dataset.value!);
+      
+      // 첫 번째 선택된 카테고리를 메인 카테고리로 설정
+      if (selected.length > 0) {
+        catInput.value = selected[0];
+      }
     });
   });
 
@@ -2088,10 +2098,21 @@ function editServer(id: number) {
       server.icon = preview.src;
     }
 
+    // 선택된 모든 카테고리 태그 모으기
+    const selectedCategoryTags = Array.from(document.querySelectorAll('.category-chips .chip.active'))
+      .map(c => (c as HTMLButtonElement).dataset.value!);
+
     // 관리자 태그 업데이트
-    const userTags = server.tags.filter(t => !config.adminOnlyTags.map(a => a.value).includes(t));
     const adminTags = adminTagsInput ? adminTagsInput.split(',').filter(Boolean) : [];
-    server.tags = [...new Set([...userTags, ...adminTags])];
+    
+    // 최종 태그 조합 (카테고리 + 관리자 태그 + '인증됨' 등 기존 특수 태그 유지)
+    // 단, config.serverTags와 config.adminOnlyTags에 정의된 것들은 새로 선택된 걸로 덮어씀
+    const otherTags = server.tags.filter(t => 
+      !config.serverTags.some(s => s.value === t) && 
+      !config.adminOnlyTags.some(a => a.value === t)
+    );
+    
+    server.tags = [...new Set([...otherTags, ...selectedCategoryTags, ...adminTags])];
 
     saveServers();
     await syncServerToDB(server); // DB 동기화
@@ -2399,7 +2420,6 @@ function renderFooter() {
   `;
   
   // 푸터 이벤트
-  document.getElementById('footer-logo')?.addEventListener('click', trackAdminClick);
   document.getElementById('footer-register')?.addEventListener('click', openPromoBanner);
   document.getElementById('footer-inquiry')?.addEventListener('click', openInquiryModal);
   document.getElementById('footer-qa')?.addEventListener('click', showQAModal);
@@ -2455,6 +2475,14 @@ function setupEventListeners() {
     if (e.target === detailModal()) detailModal().classList.add('hidden');
     if (e.target === registerModal()) registerModal().classList.add('hidden');
   };
+
+  // 관리자 시크릿 단축키 (Alt + Shift + A)
+  window.addEventListener('keydown', (e) => {
+    if (e.altKey && e.shiftKey && e.code === 'KeyA') {
+      e.preventDefault();
+      trackAdminClick();
+    }
+  });
 }
 
 // 탄력적 커서 로직
@@ -2576,8 +2604,13 @@ async function handleAdminAutoAction() {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
-// 메인 초기화
 async function init() {
+  // 시크릿 URL 파라미터 확인 (?admin)
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('admin')) {
+    setTimeout(() => trackAdminClick(), 500); // 초기 로딩 후 실행
+  }
+
   // 서버 데이터 로드
   servers = await loadServers();
   filteredServers = [...servers];

@@ -56,7 +56,6 @@ export const config = {
     { emoji: '🏙️', label: '도시RP', value: '도시RP', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.15)' },
     { emoji: '🎮', label: '게임', value: '게임', color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.15)' },
     { emoji: '🌍', label: '외국서버', value: '외국서버', color: '#14b8a6', bgColor: 'rgba(20, 184, 166, 0.15)' },
-    { emoji: '💼', label: '사업팀', value: '사업팀', color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.15)' },
   ],
   
   // 운영자만 선택 가능한 태그
