@@ -2772,9 +2772,6 @@ async function handleAdminAutoAction() {
 }
 
 async function init() {
-  // 이벤트 리스너 우선 등록 (장애 방지)
-  setupEventListeners();
-
   // IP 승인 URL 콜백 처리 (?approve_ip=IP&token=TOKEN)
   if (handleIPApprovalCallback()) {
     showToast('✅ IP 승인 완료! 디스코드 인증을 진행해주세요.', 'success');
@@ -2857,6 +2854,9 @@ async function init() {
   renderServers();
   renderFooter();
   initCursor();
+  
+  // 이벤트 리스너 등록 (DOM 생성 후)
+  setupEventListeners();
   
   // 방문 기록
   logUserActivity('페이지 방문');
