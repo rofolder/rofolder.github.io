@@ -29,6 +29,14 @@ body {
   line-height: 1.6;
   overflow-x: hidden;
   min-height: 100vh;
+  /* 스크롤바 바만 숨김 처리 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+/* Chrome, Safari, Edge용 스크롤바 숨김 */
+::-webkit-scrollbar {
+  display: none;
 }
 
 /* 탄력적 커서 (Elastic Cursor) */
@@ -1117,6 +1125,34 @@ footer {
 /* 모달 페이드인 애니메이션 */
 .modal-overlay {
   animation: fadeInOverlay 0.3s ease-out forwards;
+  z-index: 9999; /* 기본 모달 레이어 */
+}
+
+#admin-modal-container {
+  z-index: 9990; /* 관리자 대시보드 기본값 */
+}
+
+#register-modal-container,
+#detail-modal-container {
+  z-index: 10001; /* 관리자 대시보드보다 높게 설정 */
+}
+
+/* Q&A 팝업 정렬 보정 */
+.qa-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.qa-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.qa-card-content {
+  flex: 1;
 }
 
 @keyframes fadeInOverlay {

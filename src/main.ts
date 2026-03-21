@@ -498,17 +498,21 @@ function showQAModal() {
       다른 사용자들과 질문과 답변을 나누는 공간입니다. (익명)
     </p>
     
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
-      <div class="glass" style="padding: 1.5rem; border-radius: 1rem;">
-        <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">질문 올리기</h3>
-        <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem;">로샵 이용이나 등록에 대해 질문하세요</p>
+    <div class="qa-modal-grid">
+      <div class="glass qa-card" style="padding: 1.5rem; border-radius: 1rem;">
+        <div class="qa-card-content">
+          <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">질문 올리기</h3>
+          <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem;">로샵 이용이나 등록에 대해 질문하세요</p>
+        </div>
         <button id="show-ask-form" style="width: 100%; padding: 0.8rem; background: var(--accent-gradient); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold;">
           ❓ 질문하기
         </button>
       </div>
-      <div class="glass" style="padding: 1.5rem; border-radius: 1rem;">
-        <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">최근 Q&A</h3>
-        <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem;">답변된 질문 ${answeredQA.length}개</p>
+      <div class="glass qa-card" style="padding: 1.5rem; border-radius: 1rem;">
+        <div class="qa-card-content">
+          <h3 style="margin: 0 0 0.5rem 0; font-size: 1rem; color: var(--text-primary);">최근 Q&A</h3>
+          <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem;">답변된 질문 ${answeredQA.length}개</p>
+        </div>
         <button id="show-recent-qa" style="width: 100%; padding: 0.8rem; background: linear-gradient(135deg, #10b981, #34d399); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold;">
           💬 둘러보기
         </button>
@@ -2410,6 +2414,14 @@ function setupEventListeners() {
     inquiryLink.onclick = (e) => {
       e.preventDefault();
       openInquiryModal();
+    };
+  }
+
+  const headerQABtn = document.getElementById('header-qa-btn');
+  if (headerQABtn) {
+    headerQABtn.onclick = (e) => {
+      e.preventDefault();
+      showQAModal();
     };
   }
 
