@@ -1088,18 +1088,25 @@ function openPromoBanner() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            content: '<@1312208363358126183> 🚀 **새로운 로샵 등록 요청이 도착했습니다!**',
             embeds: [{
-              title: '🚀 새로운 홍보 신청',
+              title: '💎 RoFolder 프리미엄 등록 요청',
               description: `**${sanitizeDiscordText(nameInput)}** 커뮤니티의 홍보 신청이 접수되었습니다.`,
               color: 0x6366f1,
+              thumbnail: { url: iconInput || config.siteLogo },
               fields: [
-                { name: '📂 카테고리', value: selectedCategories.join(', '), inline: true },
+                { name: '🆔 신청 ID', value: `\`${newServer.id}\``, inline: true },
+                { name: '⏳ 현재 상태', value: '`승인 대기 중`', inline: true },
+                { name: '📂 카테고리', value: `\`${selectedCategories.join(', ') || '미지정'}\``, inline: false },
                 { name: '📞 문의처', value: escapeHtml(contactInput), inline: true },
-                { name: '🔗 초대 링크', value: `[링크 이동](${linkInput})`, inline: true },
-                { name: '📝 설명', value: sanitizeDiscordText(descInput) },
-                { name: '🛡️ 관리자 동작', value: `[✅ 승인](${window.location.origin}${window.location.pathname}?action=approve&id=${newServer.id}) | [❌ 거절](${window.location.origin}${window.location.pathname}?action=reject&id=${newServer.id})` }
+                { name: '🔗 초대 링크', value: `[서버 입장하기](${linkInput})`, inline: true },
+                { name: '📝 로샵 소개', value: sanitizeDiscordText(descInput) || '*설명 없음*' },
+                { name: '🛠️ 관리자 퀵 액션', value: `[✅ 승인하기](${window.location.origin}${window.location.pathname}?action=approve&id=${newServer.id}) \n [❌ 거절하기](${window.location.origin}${window.location.pathname}?action=reject&id=${newServer.id})` }
               ],
-              footer: { text: 'RoFolder Promo System' },
+              footer: { 
+                text: 'RoFolder Premium Management System',
+                icon_url: config.siteLogo 
+              },
               timestamp: new Date().toISOString()
             }]
           })
