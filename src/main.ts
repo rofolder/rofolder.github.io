@@ -80,7 +80,8 @@ async function loadServersFromDB(): Promise<DiscordServer[]> {
       tags: s.tags || [],
       inviteLink: s.invite_link,
       status: s.status,
-      createdAt: s.created_at ? new Date(s.created_at).getTime() : undefined,
+      // created_at이 없으면 id(타임스탬프)를 대신 사용하거나 현재 시간을 사용
+      createdAt: s.created_at ? new Date(s.created_at).getTime() : (typeof s.id === 'number' && s.id > 1000000000000 ? s.id : Date.now()),
       approvedAt: s.approved_at ? new Date(s.approved_at).getTime() : undefined,
       rejectionReason: s.rejection_reason,
       recommendations: s.recommendations || 0,
@@ -96,13 +97,11 @@ async function loadServersFromDB(): Promise<DiscordServer[]> {
 async function startRealTimePolling() {
   if (!isMongoDBConfigured || serverSubscription) return;
   
-  // 백업 시스템 가동 (3시간 주기)
+  // 백업 시스템 가동 (1시간 주기)
   checkAndRunBackup();
-  setInterval(checkAndRunBackup, 60 * 60 * 1000); // 1시간마다 주기 체크
+  setInterval(checkAndRunBackup, 60 * 60 * 1000);
   
-  console.log('🚀 [Init] 시스템 초기화 완료');
-  
-  console.log('📡 MongoDB 실시간 동기화 시작...');
+  console.log('📡 MongoDB 실시간 동기화 시도 중...');
   
   try {
     const mongo = await getMongoClient();
@@ -112,24 +111,33 @@ async function startRealTimePolling() {
     const watcher = collection.watch();
     serverSubscription = watcher;
 
+    console.log('✅ MongoDB 실시간 연결 성공');
+
     (async () => {
       try {
         for await (const change of watcher) {
-          console.log('🔄 실시간 데이터 변경 감지:', change);
+          console.log('🔄 [Real-time] 데이터 변경 감지:', change.operationType);
           const newServers = await loadServersFromDB();
-          if (newServers.length > 0) {
+          if (newServers && newServers.length > 0) {
+            // 최신순 정렬 유지
+            newServers.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
             servers = newServers;
             applyFilters();
             refreshAdminDashboardIfOpen();
           }
         }
       } catch (err) {
-        console.error('Watch loop error:', err);
+        console.error('❌ [Real-time] 연결 루프 중단:', err);
+      } finally {
         serverSubscription = null;
+        console.log('⚠️ [Real-time] 연결이 종료되었습니다. 5초 후 재연결 시도...');
+        setTimeout(startRealTimePolling, 5000);
       }
     })();
   } catch (e) {
-    console.error('MongoDB 실시간 구독 실패:', e);
+    console.error('❌ [Real-time] 구독 실패:', e);
+    serverSubscription = null;
+    setTimeout(startRealTimePolling, 10000); // 실패 시 10초 후 재시도
   }
 }
 
@@ -202,6 +210,8 @@ async function loadServers(): Promise<DiscordServer[]> {
     const dbServers = await loadServersFromDB();
     if (dbServers && dbServers.length > 0) {
       console.log(`🌐 [DB] ${dbServers.length}개의 서버 로드 성공`);
+      // 최신순으로 정렬 (createdAt 내림차순)
+      dbServers.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       saveServersToLocal(dbServers);
       return dbServers;
     }
@@ -273,6 +283,7 @@ async function syncServerToDB(server: DiscordServer, updateFields?: string[]) {
         tags: server.tags,
         invite_link: server.inviteLink,
         status: server.status,
+        created_at: server.createdAt ? new Date(server.createdAt).toISOString() : new Date().toISOString(),
         approved_at: server.approvedAt ? new Date(server.approvedAt).toISOString() : null,
         rejection_reason: server.rejectionReason,
         recommendations: server.recommendations || 0,
@@ -282,9 +293,10 @@ async function syncServerToDB(server: DiscordServer, updateFields?: string[]) {
     }
 
     await collection.updateOne({ id: server.id }, updateDoc, { upsert: true });
-    console.log(`✅ DB 동기화 완료 (ID: ${server.id}${updateFields ? `, Fields: ${updateFields.join(',')}` : ''})`);
+    console.log(`✅ [DB Sync] 완료 (ID: ${server.id}${updateFields ? `, Fields: ${updateFields.join(',')}` : ''})`);
   } catch (e) {
-    console.error('DB 동기화 실패:', e);
+    console.error('❌ [DB Sync] 실패:', e);
+    showToast('데이터베이스 동기화에 실패했습니다. (콘솔 확인)', 'error');
   }
 }
 
@@ -1366,7 +1378,10 @@ function openAdminDashboard() {
   
   content.innerHTML = `
     <button class="modal-close" id="close-admin-modal">&times;</button>
-    <h2 style="margin-bottom: 2rem; font-size: 2rem; color: var(--accent-color);">⚙️ 관리자 대시보드</h2>
+    <h2 style="margin-bottom: 2rem; font-size: 2rem; color: var(--accent-color); display: flex; align-items: center; justify-content: space-between;">
+      <span>⚙️ 관리자 대시보드</span>
+      <button id="admin-refresh-btn" title="새로고침" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.5rem; transition: transform 0.3s ease;">🔄</button>
+    </h2>
     
     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-bottom: 3rem;">
       <div class="stat-card">
@@ -1427,24 +1442,40 @@ function openAdminDashboard() {
     };
   }
 
-  const testWebhookBtn = document.getElementById('webhook-test-btn');
-  if (testWebhookBtn) {
-    testWebhookBtn.onclick = async () => {
-      testWebhookBtn.innerText = '⏳ 전송 중...';
-      const ok = await sendWebhook({ 
-        content: '🔔 **[RoFolder]** 웹훅 연결 테스트 성공! (관리자 탭에서 요청됨)',
-        embeds: [{
-          title: '🔗 연결 확인 완료',
-          description: '현재 사이트에서 디스코드 웹훅으로 데이터를 보낼 수 있는 상태입니다.',
-          color: 0x10b981,
-          timestamp: new Date().toISOString()
-        }]
-      });
-      testWebhookBtn.innerText = '🔗 웹훅 테스트';
-      if (ok) showToast('✅ 테스트 메시지가 전송되었습니다.', 'success');
-      else showToast('❌ 테스트 전송 실패! (콘솔 확인)', 'error');
-    };
-  }
+    const testWebhookBtn = document.getElementById('webhook-test-btn');
+    if (testWebhookBtn) {
+      testWebhookBtn.onclick = async () => {
+        testWebhookBtn.innerText = '⏳ 전송 중...';
+        const ok = await sendWebhook({ 
+          content: '🔔 **[RoFolder]** 웹훅 연결 테스트 성공! (관리자 탭에서 요청됨)',
+          embeds: [{
+            title: '🔗 연결 확인 완료',
+            description: '현재 사이트에서 디스코드 웹훅으로 데이터를 보낼 수 있는 상태입니다.',
+            color: 0x10b981,
+            timestamp: new Date().toISOString()
+          }]
+        });
+        testWebhookBtn.innerText = '🔗 웹훅 테스트';
+        if (ok) showToast('✅ 테스트 메시지가 전송되었습니다.', 'success');
+        else showToast('❌ 테스트 전송 실패! (콘솔 확인)', 'error');
+      };
+    }
+
+    const refreshBtn = document.getElementById('admin-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.onclick = async () => {
+        refreshBtn.style.transform = 'rotate(360deg)';
+        showToast('데이터 동기화 중...', 'info');
+        const newServers = await loadServers();
+        if (newServers) {
+          servers = newServers;
+          applyFilters();
+          refreshAdminDashboardIfOpen();
+          showToast('새로고침 완료', 'success');
+        }
+        setTimeout(() => { refreshBtn.style.transform = 'rotate(0deg)'; }, 500);
+      };
+    }
 
   // 탭 전환 로직 (active 클래스 기반으로 통일)
   const tabBtns = content.querySelectorAll<HTMLButtonElement>('.admin-tab-btn');
@@ -2246,7 +2277,7 @@ async function logAdminAccess(action = '로그인') {
 
 async function logUserActivity(action: string, details?: string) {
   const logData = {
-    timestamp: new Date().toISOString(),
+    timestamp: Date.now(),
     userAgent: navigator.userAgent,
     screen: `${screen.width}x${screen.height}`,
     action,
@@ -2280,20 +2311,21 @@ async function getAdminLogs(): Promise<AccessLog[]> {
     const mongo = await getMongoClient();
     if (!mongo) return [];
     
-    const data = await mongo.db.collection('logs').find(
-      { type: 'admin' },
-      // @ts-ignore
-      { sort: { timestamp: -1 }, limit: 500 }
-    );
+    const data = await mongo.db.collection('logs').find({ type: 'admin' });
       
-    return (data || []).map((l: any) => ({
-      timestamp: new Date(l.timestamp).getTime(),
-      userAgent: l.user_agent || l.userAgent,
-      screen: l.screen,
-      action: l.action,
+    const logs = (data || []).map((l: any) => ({
+      timestamp: new Date(l.timestamp || 0).getTime(),
+      userAgent: l.user_agent || l.userAgent || 'Unknown',
+      screen: l.screen || 'Unknown',
+      action: l.action || 'Unknown',
       details: l.details,
-      ip: l.ip
+      ip: l.ip || 'Unknown'
     }));
+
+    // 메모리 내 정렬 및 개수 제한
+    return logs
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      .slice(0, 500);
   } catch {
     try { return JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch { return []; }
   }
@@ -2305,19 +2337,20 @@ async function getUserLogs(): Promise<AccessLog[]> {
     const mongo = await getMongoClient();
     if (!mongo) return [];
     
-    const data = await mongo.db.collection('logs').find(
-      { type: 'user' },
-      // @ts-ignore
-      { sort: { timestamp: -1 }, limit: 500 }
-    );
+    const data = await mongo.db.collection('logs').find({ type: 'user' });
       
-    return (data || []).map((l: any) => ({
-      timestamp: new Date(l.timestamp).getTime(),
-      userAgent: l.user_agent || l.userAgent,
-      screen: l.screen,
-      action: l.action,
+    const logs = (data || []).map((l: any) => ({
+      timestamp: new Date(l.timestamp || 0).getTime(),
+      userAgent: l.user_agent || l.userAgent || 'Unknown',
+      screen: l.screen || 'Unknown',
+      action: l.action || 'Unknown',
       details: l.details
     }));
+
+    // 메모리 내 정렬 및 개수 제한
+    return logs
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      .slice(0, 500);
   } catch {
     try { return JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch { return []; }
   }
@@ -2988,16 +3021,18 @@ function refreshAdminDashboardIfOpen() {
 document.addEventListener('DOMContentLoaded', () => {
   init().catch(err => console.error('초기화 실패:', err));
   
-  // 자동 갱신: 30초마다 서버 목록 다시 로딩 (Watch 실패 대비)
+  // 자동 갱신: 10초마다 서버 목록 다시 로딩 (Watch 실패 대비 - 폴링 주기 단축)
   setInterval(async () => {
     const newServers = await loadServers();
-    if (newServers.length > 0) {
+    if (newServers && newServers.length > 0) {
+      // 최신순 정렬 유지
+      newServers.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       servers = newServers;
       applyFilters();
       refreshAdminDashboardIfOpen();
-      console.log('✅ 서버 목록 자동 갱신 완료');
+      console.log('✅ [Heartbeat] 데이터 자동 동기화 완료');
     }
-  }, 30000); // 30초
+  }, 10000); // 10초
 });
 
 // ---------------------------------------------------------
