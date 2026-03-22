@@ -8,7 +8,6 @@
 export const config = {
   // Discord 웹후크 URL - 환경 변수에서 읽음
   webhookUrl: import.meta.env.VITE_WEBHOOK_URL || '',
-  adminWebhookUrl: import.meta.env.VITE_ADMIN_WEBHOOK_URL || '',
   
   // 사이트 정보
   siteName: 'RoFolder',

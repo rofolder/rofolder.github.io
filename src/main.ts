@@ -140,20 +140,6 @@ function stopRealTimePolling() {
   }
 }
 
-function refreshAdminDashboardIfOpen() {
-  const adminModal = document.querySelector('#admin-modal-container');
-  if (adminModal && !adminModal.classList.contains('hidden')) {
-    const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as any || 'pending';
-    if (['pending', 'approved', 'rejected', 'all'].includes(currentTab)) {
-      if (currentTab === 'all') {
-        renderAllServers();
-      } else {
-        renderAdminServersByStatus(currentTab);
-      }
-    }
-  }
-}
-
 // @ts-ignore - 향후 필요시 사용
 function _unused_stopRealTimePolling() {
   stopRealTimePolling();
@@ -1190,47 +1176,28 @@ function openPromoBanner() {
 
     servers.unshift(newServer);
     saveServers();
-    await syncServerToDB(newServer); // DB 동기화
+    await syncServerToDB(newServer);
 
-    // Webhook 발송 (성공 여부 확인)
-    let webhookSuccess = false;
-    if (config.webhookUrl && config.webhookUrl.startsWith('https://discord.com')) {
-      try {
-        const response = await fetch(config.webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content: '<@1312208363358126183> 🚀 **새로운 로샵 등록 요청이 도착했습니다!**',
-            embeds: [{
-              title: '💎 RoFolder 서버 등록 요청',
-              description: `**${sanitizeDiscordText(nameInput)}** 커뮤니티의 홍보 신청이 접수되었습니다.`,
-              color: 0x6366f1,
-              thumbnail: { url: selectedIconFile ? (window.location.origin + config.siteLogo) : (iconData.startsWith('http') ? iconData : (window.location.origin + config.siteLogo)) },
-              fields: [
-                { name: '🆔 신청 ID', value: `\`${newServer.id}\``, inline: true },
-                { name: '⏳ 현재 상태', value: '`승인 대기 중`', inline: true },
-                { name: '📂 카테고리', value: `\`${selectedCategories.join(', ') || '미지정'}\``, inline: false },
-                { name: '📞 문의처', value: escapeHtml(contactInput), inline: true },
-                { name: '🔗 초대 링크', value: `[서버 입장하기](${linkInput})`, inline: true },
-                { name: '📝 로샵 소개', value: sanitizeDiscordText(descInput) || '*설명 없음*' },
-                { name: '🛠️ 관리자 퀵 액션', value: `[✅ 승인하기](${window.location.origin}${window.location.pathname}?action=approve&id=${newServer.id}) \n [❌ 거절하기](${window.location.origin}${window.location.pathname}?action=reject&id=${newServer.id})` }
-              ],
-              footer: { 
-                text: 'RoFolder Premium Management System',
-                icon_url: config.siteLogo 
-              },
-              timestamp: new Date().toISOString()
-            }]
-          })
-        });
-        webhookSuccess = response.ok;
-        if (!response.ok) {
-          console.error('Webhook 발송 실패:', response.status);
-        }
-      } catch (err) {
-        console.error('Webhook 발송 오류:', err);
-      }
-    }
+    // [Webhook] 등록 요청 전송 (안정성을 위해 간소화된 페이로드 테스트)
+    const webhookSuccess = await sendWebhook({
+      content: `<@${config.adminDiscordId}> 🚀 **새로운 서버 등록 요청이 도착했습니다!**`,
+      embeds: [{
+        title: '💎 RoFolder 서버 등록 요청',
+        description: `**${sanitizeDiscordText(nameInput)}** 커뮤니티의 홍보 신청이 접수되었습니다.`,
+        color: 0x6366f1,
+        fields: [
+          { name: '🆔 신청 ID', value: `\`${newServer.id}\``, inline: true },
+          { name: '⏳ 상태', value: '`승인 대기 중`', inline: true },
+          { name: '📂 카테고리', value: `\`${selectedCategories.join(', ')}\``, inline: false },
+          { name: '📞 문의처', value: escapeHtml(contactInput), inline: true },
+          { name: '🔗 초대 링크', value: `[서버 입장하기](${linkInput})`, inline: true },
+          { name: '📝 로샵 소개', value: sanitizeDiscordText(descInput) || '*설명 없음*' },
+          { name: '🛠️ 관리자 퀵 액션', value: `[✅ 승인하기](${window.location.origin}${window.location.pathname}?action=approve&id=${newServer.id})\n[❌ 거절하기](${window.location.origin}${window.location.pathname}?action=reject&id=${newServer.id})` }
+        ],
+        footer: { text: 'RoFolder Premium Management System' },
+        timestamp: new Date().toISOString()
+      }]
+    });
 
     const successMsg = webhookSuccess 
       ? '✅ 홍보 신청이 완료되었습니다!\n관리자 검토 후 승인하겠습니다.'
@@ -1432,6 +1399,7 @@ function openAdminDashboard() {
 
     <div style="padding-top:1.2rem;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
       <div style="flex:1;color:var(--text-secondary);font-size:0.82rem;"><span style="color:var(--accent-color);">RoFolder</span> Admin Hub v2.1.0</div>
+      <button id="webhook-test-btn" style="padding:0.5rem 1rem;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981;border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">🔗 웹훅 테스트</button>
       <button id="manual-backup-btn" style="padding:0.5rem 1rem;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:var(--accent-color);border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">📦 지금 백업</button>
       <button id="admin-logout-btn" style="padding:0.5rem 1.2rem;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">🚪 로그아웃</button>
     </div>
@@ -1447,6 +1415,36 @@ function openAdminDashboard() {
       showToast('로그아웃 완료', 'success');
     }
   };
+
+  const manualBackupBtn = document.getElementById('manual-backup-btn');
+  if (manualBackupBtn) {
+    manualBackupBtn.onclick = async () => {
+      manualBackupBtn.innerText = '⏳ 백업 중...';
+      manualBackupBtn.setAttribute('disabled', 'true');
+      await sendServersBackupToDiscord(true);
+      manualBackupBtn.innerText = '📦 지금 백업';
+      manualBackupBtn.removeAttribute('disabled');
+    };
+  }
+
+  const testWebhookBtn = document.getElementById('webhook-test-btn');
+  if (testWebhookBtn) {
+    testWebhookBtn.onclick = async () => {
+      testWebhookBtn.innerText = '⏳ 전송 중...';
+      const ok = await sendWebhook({ 
+        content: '🔔 **[RoFolder]** 웹훅 연결 테스트 성공! (관리자 탭에서 요청됨)',
+        embeds: [{
+          title: '🔗 연결 확인 완료',
+          description: '현재 사이트에서 디스코드 웹훅으로 데이터를 보낼 수 있는 상태입니다.',
+          color: 0x10b981,
+          timestamp: new Date().toISOString()
+        }]
+      });
+      testWebhookBtn.innerText = '🔗 웹훅 테스트';
+      if (ok) showToast('✅ 테스트 메시지가 전송되었습니다.', 'success');
+      else showToast('❌ 테스트 전송 실패! (콘솔 확인)', 'error');
+    };
+  }
 
   // 탭 전환 로직 (active 클래스 기반으로 통일)
   const tabBtns = content.querySelectorAll<HTMLButtonElement>('.admin-tab-btn');
@@ -1598,6 +1596,25 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
         showToast('✅ servers.json이 다운로드되었습니다!', 'success');
       });
     });
+  }
+
+  updateAdminTabBadges();
+}
+
+// 관리자 탭 뱃지 실시간 업데이트
+function updateAdminTabBadges() {
+  const stats = getAdminStats();
+  
+  // 탭 뱃지 업데이트
+  const pendingBadge = document.querySelector('.admin-tab-btn[data-tab="pending"] .tab-badge');
+  if (pendingBadge) pendingBadge.textContent = stats.totalPending.toString();
+  
+  // 메인 통계 카드 스타일 컨테이너 업데이트
+  const statCards = document.querySelectorAll('.stat-card h3');
+  if (statCards.length >= 3) {
+    statCards[0].textContent = stats.totalPending.toString();
+    statCards[1].textContent = stats.totalApproved.toString();
+    statCards[2].textContent = stats.totalRejected.toString();
   }
 }
 
@@ -1853,134 +1870,7 @@ function renderAdminInsights() {
   container.innerHTML = insightsHTML;
 }
 
-// 관리자 접속 기록 렌더링
-async function renderAdminAccessLog() {
-  const container = document.getElementById('admin-servers-container')!;
-  const logs = await getAdminLogs();
 
-  if (logs.length === 0) {
-    container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">접속 기록이 없습니다.</p>`;
-    return;
-  }
-
-  const fmtDate = (ts: number) => {
-    const d = new Date(ts);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-  };
-
-  const getBrowser = (ua: string) => {
-    if (ua.includes('Chrome') && !ua.includes('Edg')) return '🌐 Chrome';
-    if (ua.includes('Firefox')) return '🦊 Firefox';
-    if (ua.includes('Safari') && !ua.includes('Chrome')) return '🧭 Safari';
-    if (ua.includes('Edg')) return '🌀 Edge';
-    return '🔍 기타';
-  };
-
-  const isMobile = (ua: string) => /Mobile|Android|iPhone|iPad/.test(ua);
-
-  container.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-      <span style="color: var(--text-secondary); font-size: 0.9rem;">총 ${logs.length}개 · 30일 보관</span>
-      <button id="clear-logs-btn" style="background: #ef4444; color: white; border: none; padding: 0.4rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.85rem;">🗑️ 기록 전체 삭제</button>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 0.7rem;">
-      ${logs.map((log, i) => `
-        <div class="glass" style="padding: 1rem; border-radius: 0.75rem; display: flex; gap: 1rem; align-items: center; border-left: 3px solid ${log.action.includes('성공') ? '#10b981' : '#6366f1'};">
-          <div style="font-size: 1.5rem; min-width: 36px; text-align: center;">${isMobile(log.userAgent) ? '📱' : '💻'}</div>
-          <div style="flex: 1; min-width: 0;">
-            <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.3rem;">
-              <span style="font-weight: bold; color: var(--text-primary); font-size: 0.95rem;">${escapeHtml(log.action)}</span>
-              <span style="background: rgba(99,102,241,0.15); color: #a5b4fc; padding: 0.15rem 0.5rem; border-radius: 0.4rem; font-size: 0.78rem;">#${logs.length - i}</span>
-            </div>
-            <div style="color: var(--text-secondary); font-size: 0.82rem; display: flex; gap: 1rem; flex-wrap: wrap;">
-              <span>🕐 ${fmtDate(log.timestamp)}</span>
-              <span>${getBrowser(log.userAgent)}</span>
-              <span>📺 ${escapeHtml(log.screen)}</span>
-              <span>${isMobile(log.userAgent) ? '📱 모바일' : '🖥️ 데스크톱'}</span>
-            </div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-
-  document.getElementById('clear-logs-btn')?.addEventListener('click', async () => {
-    const confirmed = await showConfirm('접속 기록을 모두 삭제하시겠습니까?');
-    if (confirmed) {
-      localStorage.removeItem(ADMIN_LOG_KEY);
-      showToast('접속 기록이 삭제되었습니다.', 'success');
-      renderAdminAccessLog();
-    }
-  });
-}
-
-// 유저 활동 기록 렌더링
-async function renderUserActivityLog() {
-  const container = document.getElementById('admin-servers-container')!;
-  const logs = await getUserLogs();
-
-  if (logs.length === 0) {
-    container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">유저 활동 기록이 없습니다.</p>`;
-    return;
-  }
-
-  const fmtDate = (ts: number) => {
-    const d = new Date(ts);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
-  };
-
-  const getBrowser = (ua: string) => {
-    if (ua.includes('Chrome') && !ua.includes('Edg')) return '🌐 Chrome';
-    if (ua.includes('Firefox')) return '🦊 Firefox';
-    if (ua.includes('Safari') && !ua.includes('Chrome')) return '🧭 Safari';
-    if (ua.includes('Edg')) return '🌀 Edge';
-    return '🔍 기타';
-  };
-
-  const isMobile = (ua: string) => /Mobile|Android|iPhone|iPad/.test(ua);
-
-  container.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-      <span style="color: var(--text-secondary); font-size: 0.9rem;">최근 활동 ${logs.length}개 · 30일 보관</span>
-      <button id="clear-user-logs-btn" style="background: #ef4444; color: white; border: none; padding: 0.4rem 1rem; border-radius: 0.5rem; cursor: pointer; font-size: 0.85rem;">🗑️ 기록 비우기</button>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 0.7rem;">
-      ${logs.map((log, i) => {
-        let actionColor = '#6366f1';
-        if (log.action.includes('추천')) actionColor = '#fa8231';
-        if (log.action.includes('상세')) actionColor = '#10b981';
-        if (log.action.includes('방문')) actionColor = '#3b82f6';
-
-        return `
-          <div class="glass" style="padding: 1rem; border-radius: 0.75rem; display: flex; gap: 1rem; align-items: center; border-left: 3px solid ${actionColor};">
-            <div style="font-size: 1.5rem; min-width: 36px; text-align: center;">${isMobile(log.userAgent) ? '📱' : '💻'}</div>
-            <div style="flex: 1; min-width: 0;">
-              <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.3rem;">
-                <span style="font-weight: bold; color: var(--text-primary); font-size: 0.95rem;">${escapeHtml(log.action)}</span>
-                ${log.details ? `<span style="color: var(--accent-color); font-weight: 500;">「${escapeHtml(log.details)}」</span>` : ''}
-                <span style="background: rgba(255,255,255,0.05); color: var(--text-muted); padding: 0.15rem 0.5rem; border-radius: 0.4rem; font-size: 0.78rem;">#${logs.length - i}</span>
-              </div>
-              <div style="color: var(--text-secondary); font-size: 0.82rem; display: flex; gap: 1rem; flex-wrap: wrap;">
-                <span>🕐 ${fmtDate(log.timestamp)}</span>
-                <span>${getBrowser(log.userAgent)}</span>
-                <span>📺 ${escapeHtml(log.screen)}</span>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('')}
-    </div>
-  `;
-
-  document.getElementById('clear-user-logs-btn')?.addEventListener('click', async () => {
-    const confirmed = await showConfirm('유저 활동 기록을 모두 삭제하시겠습니까?');
-    if (confirmed) {
-      localStorage.removeItem(USER_LOG_KEY);
-      showToast('유저 활동 기록이 삭제되었습니다.', 'success');
-      renderUserActivityLog();
-    }
-  });
-}
 
 
 // 대기 중인 서버 목록 렌더링 (레거시 - 호환성 유지)
@@ -2004,6 +1894,7 @@ function approveServer(id: number) {
   // 현재 탭의 상태를 유지하며 재렌더링
   const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'pending';
   renderAdminServersByStatus(currentTab);
+  updateAdminTabBadges();
   
   // Discord Webhook으로 승인 알림 (선택)
   if (config.webhookUrl && config.webhookUrl.startsWith('https://discord.com')) {
@@ -2040,6 +1931,7 @@ function rejectServer(id: number, reason: string) {
   // 현재 탭의 상태를 유지하며 재렌더링
   const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'pending';
   renderAdminServersByStatus(currentTab);
+  updateAdminTabBadges();
   
   alert('✅ 서버가 거절되었습니다.');
 }
@@ -2254,6 +2146,7 @@ function deleteServer(id: number) {
   // 관리자 대시보드 새로고침
   const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'approved';
   renderAdminServersByStatus(currentTab);
+  updateAdminTabBadges();
 }
 
 // 서버 상태 변경
@@ -2277,11 +2170,8 @@ function updateServerStatus(id: number, newStatus: 'pending' | 'approved' | 'rej
     exportApprovedServersToJSON();
   }
   
-  // 관리자 대시보드 새로고침
-  const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'pending';
-  renderAdminServersByStatus(currentTab);
-  
   alert('✅ 서버 상태가 변경되었습니다.');
+  updateAdminTabBadges();
 }
 
 // Approved 서버들을 JSON 형식으로 내보내기 (DevTools용)
@@ -2314,18 +2204,22 @@ const ADMIN_LOG_KEY = 'rofolder_admin_log_v1';
 const USER_LOG_KEY = 'rofolder_user_log_v1';
 
 interface AccessLog {
-  timestamp: number;
+  timestamp: string | number;
   userAgent: string;
   screen: string;
   action: string;
   details?: string;
+  ip?: string;
+  type?: string;
 }
 
 async function logAdminAccess(action = '로그인') {
+  const ip = await getCurrentIP().catch(() => 'Unknown');
   const logData = {
-    timestamp: new Date().toISOString(),
+    timestamp: Date.now(),
     userAgent: navigator.userAgent,
     screen: `${screen.width}x${screen.height}`,
+    ip,
     action,
     type: 'admin'
   };
@@ -2397,7 +2291,8 @@ async function getAdminLogs(): Promise<AccessLog[]> {
       userAgent: l.user_agent || l.userAgent,
       screen: l.screen,
       action: l.action,
-      details: l.details
+      details: l.details,
+      ip: l.ip
     }));
   } catch {
     try { return JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch { return []; }
@@ -2426,6 +2321,127 @@ async function getUserLogs(): Promise<AccessLog[]> {
   } catch {
     try { return JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch { return []; }
   }
+}
+
+// 관리자 접속 기록 렌더링
+async function renderAdminAccessLog() {
+  const container = document.getElementById('admin-servers-container')!;
+  let logs = await getAdminLogs();
+  
+  // 7일 지난 로그 자동 삭제
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const initialLength = logs.length;
+  logs = logs.filter(l => {
+    const ts = typeof l.timestamp === 'string' ? new Date(l.timestamp).getTime() : l.timestamp;
+    return ts > sevenDaysAgo;
+  });
+  
+  if (logs.length < initialLength) {
+    localStorage.setItem(ADMIN_LOG_KEY, JSON.stringify(logs));
+  }
+  
+  if (logs.length === 0) {
+    container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">최근 7일간 접속 기록이 없습니다.</p>`;
+    return;
+  }
+  
+  const maskIP = (ip?: string) => {
+    if (!ip || ip === 'Unknown') return 'IP 기록 없음';
+    const parts = ip.split('.');
+    if (parts.length === 4) return `${parts[0]}.${parts[1]}.***.***`;
+    return ip.substring(0, Math.min(ip.length, 8)) + '...';
+  };
+
+  const getDeviceLabel = (ua: string) => {
+    const isMobile = /Mobile|Android|iPhone|iPad/i.test(ua);
+    let browser = '기타 브라우저';
+    if (ua.includes('Edg')) browser = 'Edge';
+    else if (ua.includes('Chrome')) browser = 'Chrome';
+    else if (ua.includes('Firefox')) browser = 'Firefox';
+    else if (ua.includes('Safari')) browser = 'Safari';
+    
+    return `${isMobile ? '📱 모바일' : '💻 PC'} (${browser})`;
+  };
+
+  container.innerHTML = `
+    <div style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">총 ${logs.length}건의 접속 기록 (7일 보관)</div>
+    <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+      ${logs.map(log => `
+        <div class="glass" style="padding: 1rem; border-radius: 0.8rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+          <div style="flex: 1;">
+            <div style="font-weight: bold; color: var(--text-primary); margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.5rem;">
+              <span>${escapeHtml(log.action)}</span>
+              <span style="font-size: 0.75rem; padding: 0.2rem 0.6rem; background: rgba(99,102,241,0.15); border-radius: 1rem; color: var(--accent-color);">
+                ${maskIP(log.ip)}
+              </span>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 0.8rem; align-items: center;">
+              <span>${getDeviceLabel(log.userAgent)}</span>
+              <span style="font-size: 0.8rem; opacity: 0.7;">해상도: ${escapeHtml(log.screen)}</span>
+            </div>
+          </div>
+          <div style="text-align: right; font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">
+            ${new Date(log.timestamp).toLocaleString('ko-KR')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// 유저 활동 및 인사이트 렌더링
+async function renderUserActivityLog() {
+  const container = document.getElementById('admin-servers-container')!;
+  const logs = await getUserLogs();
+  
+  if (logs.length === 0) {
+    container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">유저 활동 기록이 없습니다.</p>`;
+    return;
+  }
+  
+  // 인사이트 계산
+  const totalVisits = logs.filter(l => l.action.includes('방문')).length;
+  const serverViews = logs.filter(l => l.action.includes('상세 보기'));
+  
+  const viewCounts: Record<string, number> = {};
+  serverViews.forEach(v => {
+    if (v.details) viewCounts[v.details] = (viewCounts[v.details] || 0) + 1;
+  });
+  
+  const topServer = Object.entries(viewCounts).sort((a, b) => b[1] - a[1])[0];
+  const topServerName = topServer ? topServer[0] : '발견안됨';
+  const topServerViews = topServer ? topServer[1] : 0;
+  
+  container.innerHTML = `
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+      <div class="glass" style="padding: 1.5rem; border-radius: 1rem; text-align: center;">
+        <h4 style="color: var(--text-secondary); margin: 0 0 0.5rem 0;">총 페이지 방문</h4>
+        <div style="font-size: 2rem; color: #3b82f6; font-weight: bold;">${totalVisits}회</div>
+      </div>
+      <div class="glass" style="padding: 1.5rem; border-radius: 1rem; text-align: center;">
+        <h4 style="color: var(--text-secondary); margin: 0 0 0.5rem 0;">가장 조회수 높은 서버</h4>
+        <div style="font-size: 1.3rem; color: #fa8231; font-weight: bold; margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(topServerName)}</div>
+        <div style="font-size: 0.9rem; color: var(--text-muted);">${topServerViews}회 조회됨</div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">최근 활동 기록 (최대 50건)</div>
+    <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+      ${logs.slice(0, 50).map(log => `
+        <div class="glass" style="padding: 1rem; border-radius: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: bold; color: var(--text-primary); margin-bottom: 0.3rem;">
+              ${escapeHtml(log.action)} ${log.details ? `<span style="color: var(--accent-color);">(${escapeHtml(log.details)})</span>` : ''}
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(log.userAgent)}</div>
+          </div>
+          <div style="text-align: right; font-size: 0.85rem; color: var(--text-muted);">
+            <div>${new Date(log.timestamp).toLocaleString('ko-KR')}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 // 관리자 클릭 추적 (푸터 로고 5번 클릭)
@@ -2479,9 +2495,11 @@ function openAdminLoginPrompt() {
   const handleLogin = () => {
     const password = passwordInput.value;
     if (password === config.adminPassword) {
+      const adminName = prompt('관리자 접속을 위해 식별용 이름을 입력해주세요 (예: 서하로):', '관리자');
       adminPasswordAttempts = 0;
       setAdminToken('admin_access_token_' + Date.now());
       sessionStorage.setItem('admin_token', 'admin_access_token_' + Date.now()); // 이중 확인 (무결성)
+      logAdminAccess(`로그인 - ${adminName || '익명'}`);
       modal.classList.add('hidden');
       modal.style.display = 'none';
       showToast('🔓 관리자 인증 성공!', 'success');
@@ -2601,36 +2619,76 @@ function openRegisterModal() {
   openPromoBanner();
 }
 
+// 통합 웹훅 전송 함수 (상세 로그 포함)
+async function sendWebhook(payload: any, isFile = false) {
+  if (!config.webhookUrl || !config.webhookUrl.startsWith('https://discord.com')) {
+    console.error('❌ [Webhook] URL이 설정되지 않았거나 올바르지 않습니다.');
+    return false;
+  }
+
+  try {
+    let response;
+    if (isFile) {
+      // payload가 FormData인 경우
+      response = await fetch(config.webhookUrl, {
+        method: 'POST',
+        body: payload
+      });
+    } else {
+      // payload가 JSON 객체인 경우
+      response = await fetch(config.webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (okResp(response)) {
+      console.log('✅ [Webhook] 전송 성공');
+      return true;
+    } else {
+      const errorText = await response.text();
+      console.error(`❌ [Webhook] Discord 거절 (상태: ${response.status})`);
+      console.error('메시지:', errorText);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ [Webhook] 네트워크 오류 발생:', error);
+    return false;
+  }
+}
+
+function okResp(res: Response) {
+  return res.ok || res.status === 204;
+}
+
 // 서버 데이터 자동 백업 (3시간 주기)
-async function sendServersBackupToDiscord() {
-  if (!config.adminWebhookUrl) return;
+async function sendServersBackupToDiscord(isManual = false) {
+  if (!config.webhookUrl) return;
   
   try {
     const backupData = {
-      timestamp: new Date().toISOString(),
-      serverCount: servers.length,
       servers: servers
     };
     
     const jsonBlob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
     const formData = new FormData();
     
-    formData.append('content', `📦 **[자동 백업]** 로폴더 서버 목록 데이터 (총 ${servers.length}개)`);
-    formData.append('file', jsonBlob, `servers_backup_${new Date().getTime()}.json`);
+    const title = isManual ? '📦 **[수동 백업]**' : '📦 **[자동 백업]**';
+    formData.append('content', `${title} 로폴더 서버 목록 데이터 (총 ${servers.length}개)`);
+    formData.append('file', jsonBlob, 'servers.json');
     
-    const response = await fetch(config.adminWebhookUrl, {
-      method: 'POST',
-      body: formData
-    });
+    const success = await sendWebhook(formData, true);
     
-    if (response.ok) {
-      console.log('✅ [Backup] 서버 데이터 백업 전송 완료');
-      localStorage.setItem('rofolder_last_backup', new Date().getTime().toString());
+    if (success) {
+      if (!isManual) localStorage.setItem('rofolder_last_backup', new Date().getTime().toString());
+      if (isManual) showToast('✅ 백업 파일이 웹훅으로 전송되었습니다.', 'success');
     } else {
-      console.error('❌ [Backup] 백업 전송 실패:', response.statusText);
+      if (isManual) showToast('❌ 백업 전송 실패!', 'error');
     }
   } catch (error) {
     console.error('❌ [Backup] 백업 중 오류 발생:', error);
+    if (isManual) showToast('❌ 백업 중 오류 발생', 'error');
   }
 }
 
@@ -2775,8 +2833,9 @@ async function handleAdminAutoAction() {
   if (!hasAdminAccess()) {
     const password = prompt('🔐 관리자 전용 동작입니다. 비밀번호를 입력하세요:', '');
     if (password === config.adminPassword) {
+      const adminName = prompt('관리자 식별용 이름을 입력해주세요:', '자동승인기본');
       setAdminToken('admin_access_token_' + Date.now());
-      logAdminAccess('자동 동작 로그인');
+      logAdminAccess(`자동 동작 로그인 - ${adminName || '익명'}`);
     } else {
       alert('❌ 비밀번호가 틀렸거나 취소되었습니다.');
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -2895,19 +2954,35 @@ async function init() {
   renderFilters();
   renderServers();
   renderFooter();
-  initCursor();
   
-  // 이벤트 리스너 등록 (DOM 생성 후)
+  // 1. 이벤트 리스너 등록 (UI 생기자마자 최우선 실행)
   setupEventListeners();
   
-  // 방문 기록
+  // 2. 나머지 초기화 (비동기 병렬 처리로 지연 최소화)
+  initCursor();
   logUserActivity('페이지 방문');
-  
-  // 실시간 갱신 시작
   startRealTimePolling();
   
-  // 관리자 자동 동작 처리
-  await handleAdminAutoAction();
+  // 3. 관리자 자동 동작 (실패해도 초기화는 유지)
+  try {
+    await handleAdminAutoAction();
+  } catch (e) {
+    console.error('관리자 자동 동작 처리 중 오류:', e);
+  }
+}
+
+// 관리자 대시보드가 열려있다면 내용 갱신
+function refreshAdminDashboardIfOpen() {
+  const dashboard = document.querySelector('#admin-modal-container:not(.hidden)');
+  if (dashboard) {
+    const currentTab = dashboard.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab');
+    if (currentTab === 'pending' || currentTab === 'approved' || currentTab === 'rejected') {
+      renderAdminServersByStatus(currentTab);
+    } else if (currentTab === 'all') {
+      renderAllServers();
+    }
+    updateAdminTabBadges();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
