@@ -283,12 +283,12 @@ async function syncServerToDB(server: DiscordServer, updateFields?: string[]) {
         tags: server.tags,
         invite_link: server.inviteLink,
         status: server.status,
-        created_at: server.createdAt ? new Date(server.createdAt).toISOString() : new Date().toISOString(),
-        approved_at: server.approvedAt ? new Date(server.approvedAt).toISOString() : null,
+        created_at: server.createdAt ? new Date(server.createdAt) : new Date(),
+        approved_at: server.approvedAt ? new Date(server.approvedAt) : null,
         rejection_reason: server.rejectionReason,
         recommendations: server.recommendations || 0,
         clicks: server.clicks || 0,
-        updated_at: new Date().toISOString()
+        updated_at: new Date()
       };
     }
 
