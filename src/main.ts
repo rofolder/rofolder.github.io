@@ -1477,6 +1477,23 @@ function openAdminDashboard() {
       };
     }
 
+    // 진단 정보 추가 (모달 하단)
+    (async () => {
+      const mongo = await getMongoClient();
+      const serverStats = getAdminStats();
+      const diagnosticHtml = `
+        <div style="margin-top: 3rem; padding: 1.5rem; background: rgba(0,0,0,0.3); border-radius: 16px; font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); border: 1px solid var(--card-border);">
+          <div style="color: var(--accent-color); font-weight: bold; margin-bottom: 0.5rem;">🔍 시스템 진단 정보</div>
+          <div>📡 DB 응답 서버 수: ${servers.length}개</div>
+          <div>👤 현재 세션 ID: ${mongo?.user?.id || '비로그인'}</div>
+          <div>⏳ 대기 중 서버: ${serverStats.totalPending}개</div>
+          ${serverStats.totalPending === 0 && servers.length > 0 ? 
+            '<div style="color: #f59e0b; margin-top: 0.5rem;">⚠️ 대기 중인 서버가 0개입니다. DB 권한(Rules)에서 Pending 상태를 읽을 수 있는지 확인 바랍니다.</div>' : ''}
+        </div>
+      `;
+      content.insertAdjacentHTML('beforeend', diagnosticHtml);
+    })();
+
   // 탭 전환 로직 (active 클래스 기반으로 통일)
   const tabBtns = content.querySelectorAll<HTMLButtonElement>('.admin-tab-btn');
   const switchTab = (tab: string) => {
