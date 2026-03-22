@@ -1378,10 +1378,10 @@ function openAdminDashboard() {
   
   content.innerHTML = `
     <button class="modal-close" id="close-admin-modal">&times;</button>
-    <h2 style="margin-bottom: 2rem; font-size: 2rem; color: var(--accent-color); display: flex; align-items: center; justify-content: space-between;">
-      <span>⚙️ 관리자 대시보드</span>
-      <button id="admin-refresh-btn" title="새로고침" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.5rem; transition: transform 0.3s ease;">🔄</button>
-    </h2>
+    <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+      <h2 style="font-size: 2rem; color: var(--accent-color); margin: 0;">⚙️ 관리자 대시보드</h2>
+      <button id="admin-refresh-btn" title="데이터 새로고침" style="background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: var(--text-secondary); cursor: pointer; font-size: 1.2rem; padding: 0.5rem; border-radius: 12px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;">🔄</button>
+    </div>
     
     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; margin-bottom: 3rem;">
       <div class="stat-card">
