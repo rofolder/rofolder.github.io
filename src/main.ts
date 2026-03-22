@@ -1398,7 +1398,7 @@ function openAdminDashboard() {
     </div>
 
     <div style="padding-top:1.2rem;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
-      <div style="flex:1;color:var(--text-secondary);font-size:0.82rem;"><span style="color:var(--accent-color);">RoFolder</span> Admin Hub v2.1.0</div>
+      <div style="flex:1;color:var(--text-secondary);font-size:0.82rem;"><span style="color:var(--accent-color);">RoFolder</span> Admin Hub v2.2.0 (Latest)</div>
       <button id="webhook-test-btn" style="padding:0.5rem 1rem;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981;border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">🔗 웹훅 테스트</button>
       <button id="manual-backup-btn" style="padding:0.5rem 1rem;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:var(--accent-color);border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">📦 지금 백업</button>
       <button id="admin-logout-btn" style="padding:0.5rem 1.2rem;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">🚪 로그아웃</button>
@@ -2547,7 +2547,7 @@ function renderFooter() {
       <div style="max-width: 1400px; margin: 0 auto;">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; margin-bottom: 3rem;">
           <div>
-            <h3 id="footer-logo" title="Admin Access" style="margin: 0 0 0.5rem 0; color: var(--accent-color, #6366f1); font-size: 1.2rem; cursor: pointer; user-select: none;">🌟 ${config.siteName}</h3>
+            <h3 id="footer-logo" title="RoFolder Home" style="margin: 0 0 0.5rem 0; color: var(--accent-color, #6366f1); font-size: 1.2rem; cursor: pointer; user-select: none;">🌟 ${config.siteName}</h3>
             <p style="margin: 0 0 1rem 0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">
               프리미엄 디스코드 커뮤니티 허브
             </p>
