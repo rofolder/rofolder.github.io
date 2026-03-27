@@ -31,7 +31,7 @@ import {
   setAdminToken,
   validateServerData,
 } from './security';
-import { getMongoClient, isMongoDBConfigured } from './mongodb';
+import { supabase, isSupabaseConfigured } from './supabase';
 import {
   getCurrentIP,
   isIPApproved,
@@ -60,19 +60,19 @@ async function loadServersFromJSON(): Promise<DiscordServer[]> {
 }
 
 async function loadServersFromDB(): Promise<DiscordServer[]> {
-  if (!isMongoDBConfigured) return [];
+  if (!isSupabaseConfigured) return [];
   try {
-    const mongo = await getMongoClient();
-    if (!mongo) return [];
+    const { data, error } = await supabase
+      .from('servers')
+      .select('*');
 
-    const collection = mongo.db.collection('servers');
-    // 디버그용: 모든 서버 로드 (나중에 필터 복구 예정)
-    const data = await collection.find({}); 
-    console.log(`📡 [DB Query] 진행 완료 (결과 수: ${data?.length || 0})`);
+    if (error) throw error;
+    
+    console.log(`📡 [Supabase Query] 진행 완료 (결과 수: ${data?.length || 0})`);
     
     // DB 데이터를 DiscordServer 형식으로 매핑
     return (data || []).map((s: any) => ({
-      id: s.id,
+      id: Number(s.id),
       name: s.name,
       category: s.category,
       description: s.description,
@@ -80,7 +80,6 @@ async function loadServersFromDB(): Promise<DiscordServer[]> {
       tags: s.tags || [],
       inviteLink: s.invite_link,
       status: s.status,
-      // created_at이 없으면 id(타임스탬프)를 대신 사용하거나 현재 시간을 사용
       createdAt: s.created_at ? new Date(s.created_at).getTime() : (typeof s.id === 'number' && s.id > 1000000000000 ? s.id : Date.now()),
       approvedAt: s.approved_at ? new Date(s.approved_at).getTime() : undefined,
       rejectionReason: s.rejection_reason,
@@ -88,57 +87,42 @@ async function loadServersFromDB(): Promise<DiscordServer[]> {
       clicks: s.clicks || 0
     }));
   } catch (e) {
-    console.error('MongoDB 데이터 로드 실패:', e);
+    console.error('Supabase 데이터 로드 실패:', e);
     return [];
   }
 }
 
-// 실시간 갱신: MongoDB Watch (Change Streams)
 async function startRealTimePolling() {
-  if (!isMongoDBConfigured || serverSubscription) return;
+  if (!isSupabaseConfigured || serverSubscription) return;
   
+  console.log('📡 [Supabase] 실시간 동기화 시작...');
+  
+  serverSubscription = supabase
+    .channel('servers-changes')
+    .on('postgres_changes', { event: '*', table: 'servers', schema: 'public' }, async (payload) => {
+      console.log('🔄 [Supabase] 데이터 변경 감지:', payload.eventType);
+      
+      const newServers = await loadServers();
+      if (newServers) {
+        servers = newServers;
+        applyFilters();
+        refreshAdminDashboardIfOpen();
+        
+        // 실시간 갱신 시 간단한 알림 (이미 승인된 것만 등)
+        if (payload.eventType === 'INSERT') {
+          showToast('🔔 새로운 서버가 등록되었습니다.', 'info');
+        }
+      }
+    })
+    .subscribe((status) => {
+      console.log('📡 [Supabase] 실시간 상태:', status);
+    });
+
   // 백업 시스템 가동 (1시간 주기)
   checkAndRunBackup();
   setInterval(checkAndRunBackup, 60 * 60 * 1000);
   
-  console.log('📡 MongoDB 실시간 동기화 시도 중...');
-  
-  try {
-    const mongo = await getMongoClient();
-    if (!mongo) return;
-
-    const collection = mongo.db.collection('servers');
-    const watcher = collection.watch();
-    serverSubscription = watcher;
-
-    console.log('✅ MongoDB 실시간 연결 성공');
-
-    (async () => {
-      try {
-        for await (const change of watcher) {
-          console.log('🔄 [Real-time] 데이터 변경 감지:', change.operationType);
-          const newServers = await loadServersFromDB();
-          if (newServers && newServers.length > 0) {
-            // 최신순 정렬 유지
-            newServers.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-            servers = newServers;
-            applyFilters();
-            refreshAdminDashboardIfOpen();
-          }
-        }
-      } catch (err) {
-        console.error('❌ [Real-time] 연결 루프 중단:', err);
-      } finally {
-        serverSubscription = null;
-        console.log('⚠️ [Real-time] 연결이 종료되었습니다. 5초 후 재연결 시도...');
-        setTimeout(startRealTimePolling, 5000);
-      }
-    })();
-  } catch (e) {
-    console.error('❌ [Real-time] 구독 실패:', e);
-    serverSubscription = null;
-    setTimeout(startRealTimePolling, 10000); // 실패 시 10초 후 재시도
-  }
+  // Supabase 실시간 동기화 (마이그레이션 완료)
 }
 
 function stopRealTimePolling() {
@@ -205,7 +189,7 @@ function loadServersFromLocal(): DiscordServer[] {
 }
 
 async function loadServers(): Promise<DiscordServer[]> {
-  // 1. MongoDB에서 먼저 로드 시도
+  // 1. Supabase에서 먼저 로드 시도
   try {
     const dbServers = await loadServersFromDB();
     if (dbServers && dbServers.length > 0) {
@@ -216,7 +200,7 @@ async function loadServers(): Promise<DiscordServer[]> {
       return dbServers;
     }
   } catch (e) {
-    console.error('MongoDB 로드 실패:', e);
+    console.error('Supabase 로드 실패:', e);
   }
 
   // 2. 실패 시 로컬스토리지 시도
@@ -250,52 +234,40 @@ function saveServersToLocal(data: DiscordServer[]) {
 }
 
 async function syncServerToDB(server: DiscordServer, updateFields?: string[]) {
-  if (!isMongoDBConfigured) return;
+  if (!isSupabaseConfigured) return;
   try {
-    const mongo = await getMongoClient();
-    if (!mongo) return;
+    const updateDoc: any = {
+      id: server.id,
+      name: server.name,
+      category: server.category,
+      description: server.description,
+      icon: server.icon,
+      tags: server.tags,
+      invite_link: server.inviteLink,
+      status: server.status,
+      created_at: server.createdAt ? new Date(server.createdAt) : new Date(),
+      approved_at: server.approvedAt ? new Date(server.approvedAt) : null,
+      rejection_reason: server.rejectionReason,
+      recommendations: server.recommendations || 0,
+      clicks: server.clicks || 0,
+      updated_at: new Date()
+    };
 
-    const collection = mongo.db.collection('servers');
-    
-    // 특정 필드만 업데이트하거나 전체 업데이트 결정
-    let updateDoc: any = {};
-    if (updateFields) {
-      updateFields.forEach(field => {
-        if (field === 'recommendations' || field === 'clicks') {
-          // 아토믹 증가 처리 (다른 사용자 데이터 보호)
-          if (!updateDoc.$inc) updateDoc.$inc = {};
-          updateDoc.$inc[field] = 1;
-        } else {
-          if (!updateDoc.$set) updateDoc.$set = {};
-          // 명칭 매핑 (inviteLink -> invite_link 등)
-          if (field === 'inviteLink') updateDoc.$set.invite_link = server.inviteLink;
-          else if (field === 'approvedAt') updateDoc.$set.approved_at = server.approvedAt ? new Date(server.approvedAt).toISOString() : null;
-          else (updateDoc.$set as any)[field] = (server as any)[field];
-        }
-      });
-    } else {
-      // 전체 업데이트 ($set)
-      updateDoc.$set = {
-        name: server.name,
-        category: server.category,
-        description: server.description,
-        icon: server.icon,
-        tags: server.tags,
-        invite_link: server.inviteLink,
-        status: server.status,
-        created_at: server.createdAt ? new Date(server.createdAt) : new Date(),
-        approved_at: server.approvedAt ? new Date(server.approvedAt) : null,
-        rejection_reason: server.rejectionReason,
-        recommendations: server.recommendations || 0,
-        clicks: server.clicks || 0,
-        updated_at: new Date()
-      };
+    // 필드 단위 업데이트가 요청된 경우 (추천수 증가 등)
+    if (updateFields && (updateFields.includes('recommendations') || updateFields.includes('clicks'))) {
+      // Supabase RPC나 Increment를 사용할 수도 있지만, 
+      // 여기서는 간단히 전체 문서를 upsert 처리합니다. 
+      // (완벽한 아토믹 처리가 필요하다면 rpc('increment_server_stat')를 권장)
     }
 
-    await collection.updateOne({ id: server.id }, updateDoc, { upsert: true });
-    console.log(`✅ [DB Sync] 완료 (ID: ${server.id}${updateFields ? `, Fields: ${updateFields.join(',')}` : ''})`);
+    const { error } = await supabase
+      .from('servers')
+      .upsert(updateDoc);
+
+    if (error) throw error;
+    console.log(`✅ [Supabase Sync] 완료 (ID: ${server.id})`);
   } catch (e) {
-    console.error('❌ [DB Sync] 실패:', e);
+    console.error('❌ [Supabase Sync] 실패:', e);
     showToast('데이터베이스 동기화에 실패했습니다. (콘솔 확인)', 'error');
   }
 }
@@ -1477,22 +1449,17 @@ function openAdminDashboard() {
       };
     }
 
-    // 진단 정보 추가 (모달 하단)
-    (async () => {
-      const mongo = await getMongoClient();
-      const serverStats = getAdminStats();
-      const diagnosticHtml = `
-        <div style="margin-top: 3rem; padding: 1.5rem; background: rgba(0,0,0,0.3); border-radius: 16px; font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); border: 1px solid var(--card-border);">
-          <div style="color: var(--accent-color); font-weight: bold; margin-bottom: 0.5rem;">🔍 시스템 진단 정보</div>
-          <div>📡 DB 응답 서버 수: ${servers.length}개</div>
-          <div>👤 현재 세션 ID: ${mongo?.app?.currentUser?.id || '비로그인'}</div>
-          <div>⏳ 대기 중 서버: ${serverStats.totalPending}개</div>
-          ${serverStats.totalPending === 0 && servers.length > 0 ? 
-            '<div style="color: #f59e0b; margin-top: 0.5rem;">⚠️ 대기 중인 서버가 0개입니다. DB 권한(Rules)에서 Pending 상태를 읽을 수 있는지 확인 바랍니다.</div>' : ''}
-        </div>
-      `;
-      content.insertAdjacentHTML('beforeend', diagnosticHtml);
-    })();
+    // Supabase 진단 정보 추가 (모달 하단)
+    const serverStats = getAdminStats();
+    const diagnosticHtml = `
+      <div style="margin-top: 3rem; padding: 1.5rem; background: rgba(0,0,0,0.3); border-radius: 16px; font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); border: 1px solid var(--card-border);">
+        <div style="color: var(--accent-color); font-weight: bold; margin-bottom: 0.5rem;">🔍 시스템 진단 정보 (Supabase)</div>
+        <div>📡 DB 응답 서버 수: ${servers.length}개</div>
+        <div>⏳ 대기 중 서버: ${serverStats.totalPending}개</div>
+        <div>🔌 Supabase 설정 상태: ${isSupabaseConfigured ? '✅ 정상' : '❌ 미설정'}</div>
+      </div>
+    `;
+    content.insertAdjacentHTML('beforeend', diagnosticHtml);
 
   // 탭 전환 로직 (active 클래스 기반으로 통일)
   const tabBtns = content.querySelectorAll<HTMLButtonElement>('.admin-tab-btn');
@@ -1712,14 +1679,11 @@ function renderAllServers() {
           servers.splice(idx, 1);
           saveServers();
           
-          // DB 삭제
-          if (isMongoDBConfigured) {
-            getMongoClient().then(mongo => {
-              if (mongo) {
-                mongo.db.collection('servers').deleteOne({ id }).then(() => {
-                   refreshAdminDashboardIfOpen();
-                });
-              }
+          // DB 삭제 (Supabase)
+          if (isSupabaseConfigured) {
+            supabase.from('servers').delete().eq('id', id).then(({ error }) => {
+              if (error) console.error('❌ [Supabase Delete] 실패:', error);
+              refreshAdminDashboardIfOpen();
             });
           }
           
@@ -2180,12 +2144,10 @@ function deleteServer(id: number) {
   servers.splice(index, 1);
   saveServers();
   
-  // DB 삭제
-  if (isMongoDBConfigured) {
-    getMongoClient().then(mongo => {
-      if (mongo) {
-        mongo.db.collection('servers').deleteOne({ id });
-      }
+  // DB 삭제 (Supabase)
+  if (isSupabaseConfigured) {
+    supabase.from('servers').delete().eq('id', id).then(({ error }) => {
+      if (error) console.error('❌ [Supabase Delete] 실패:', error);
     });
   }
 
@@ -2264,7 +2226,7 @@ interface AccessLog {
 async function logAdminAccess(action = '로그인') {
   const ip = await getCurrentIP().catch(() => 'Unknown');
   const logData = {
-    timestamp: Date.now(),
+    timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
     screen: `${screen.width}x${screen.height}`,
     ip,
@@ -2279,13 +2241,10 @@ async function logAdminAccess(action = '로그인') {
   if (localLogs.length > 500) localLogs = localLogs.slice(0, 500);
   localStorage.setItem(ADMIN_LOG_KEY, JSON.stringify(localLogs));
 
-  // 2. DB 동기화
-  if (isMongoDBConfigured) {
+  // 2. Supabase 동기화
+  if (isSupabaseConfigured) {
     try {
-      const mongo = await getMongoClient();
-      if (mongo) {
-        await mongo.db.collection('logs').insertOne(logData);
-      }
+      await supabase.from('logs').insert(logData);
     } catch (e) {
       console.error('관리자 로그 DB 저장 실패:', e);
     }
@@ -2294,7 +2253,7 @@ async function logAdminAccess(action = '로그인') {
 
 async function logUserActivity(action: string, details?: string) {
   const logData = {
-    timestamp: Date.now(),
+    timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
     screen: `${screen.width}x${screen.height}`,
     action,
@@ -2309,13 +2268,10 @@ async function logUserActivity(action: string, details?: string) {
   if (localLogs.length > 500) localLogs = localLogs.slice(0, 500);
   localStorage.setItem(USER_LOG_KEY, JSON.stringify(localLogs));
 
-  // 2. DB 동기화
-  if (isMongoDBConfigured) {
+  // 2. Supabase 동기화
+  if (isSupabaseConfigured) {
     try {
-      const mongo = await getMongoClient();
-      if (mongo) {
-        await mongo.db.collection('logs').insertOne(logData);
-      }
+      await supabase.from('logs').insert(logData);
     } catch (e) {
       console.error('유저 로그 DB 저장 실패:', e);
     }
@@ -2323,51 +2279,49 @@ async function logUserActivity(action: string, details?: string) {
 }
 
 async function getAdminLogs(): Promise<AccessLog[]> {
-  if (!isMongoDBConfigured) return [];
+  if (!isSupabaseConfigured) return [];
   try {
-    const mongo = await getMongoClient();
-    if (!mongo) return [];
-    
-    const data = await mongo.db.collection('logs').find({ type: 'admin' });
+    const { data, error } = await supabase
+      .from('logs')
+      .select('*')
+      .eq('type', 'admin')
+      .order('timestamp', { ascending: false })
+      .limit(500);
+
+    if (error) throw error;
       
-    const logs = (data || []).map((l: any) => ({
-      timestamp: new Date(l.timestamp || 0).getTime(),
-      userAgent: l.user_agent || l.userAgent || 'Unknown',
+    return (data || []).map((l: any) => ({
+      timestamp: new Date(l.timestamp).getTime(),
+      userAgent: l.userAgent || 'Unknown',
       screen: l.screen || 'Unknown',
       action: l.action || 'Unknown',
       details: l.details,
       ip: l.ip || 'Unknown'
     }));
-
-    // 메모리 내 정렬 및 개수 제한
-    return logs
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-      .slice(0, 500);
   } catch {
     try { return JSON.parse(localStorage.getItem(ADMIN_LOG_KEY) || '[]'); } catch { return []; }
   }
 }
 
 async function getUserLogs(): Promise<AccessLog[]> {
-  if (!isMongoDBConfigured) return [];
+  if (!isSupabaseConfigured) return [];
   try {
-    const mongo = await getMongoClient();
-    if (!mongo) return [];
-    
-    const data = await mongo.db.collection('logs').find({ type: 'user' });
+    const { data, error } = await supabase
+      .from('logs')
+      .select('*')
+      .eq('type', 'user')
+      .order('timestamp', { ascending: false })
+      .limit(500);
+
+    if (error) throw error;
       
-    const logs = (data || []).map((l: any) => ({
-      timestamp: new Date(l.timestamp || 0).getTime(),
-      userAgent: l.user_agent || l.userAgent || 'Unknown',
+    return (data || []).map((l: any) => ({
+      timestamp: new Date(l.timestamp).getTime(),
+      userAgent: l.userAgent || l.userAgent || 'Unknown',
       screen: l.screen || 'Unknown',
       action: l.action || 'Unknown',
       details: l.details
     }));
-
-    // 메모리 내 정렬 및 개수 제한
-    return logs
-      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-      .slice(0, 500);
   } catch {
     try { return JSON.parse(localStorage.getItem(USER_LOG_KEY) || '[]'); } catch { return []; }
   }

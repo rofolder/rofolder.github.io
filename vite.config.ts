@@ -22,10 +22,9 @@ export default defineConfig({
         chunkFileNames: 'assets/[name].[hash].js',
         assetFileNames: 'assets/[name].[hash].[ext]',
 
-        // 벤더 청크 분리 (MongoDB SDK 등 대형 라이브러리 별도 파일)
+        // 벤더 청크 분리
         manualChunks: (id) => {
           if (id.includes('node_modules')) {
-            if (id.includes('realm-web') || id.includes('mongodb')) return 'vendor-mongo';
             return 'vendor';
           }
         }
