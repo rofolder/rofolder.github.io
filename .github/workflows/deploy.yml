@@ -43,6 +43,8 @@ jobs:
           VITE_DISCORD_FORUM_URL: ${{ secrets.VITE_DISCORD_FORUM_URL }}
           VITE_TWITTER_URL: ${{ secrets.VITE_TWITTER_URL }}
           VITE_ADMIN_PASSWORD: ${{ secrets.VITE_ADMIN_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: 📄 Upload artifact
         uses: actions/upload-pages-artifact@v3
