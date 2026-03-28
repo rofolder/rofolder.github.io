@@ -233,7 +233,7 @@ function saveServersToLocal(data: DiscordServer[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-async function syncServerToDB(server: DiscordServer, updateFields?: string[]) {
+async function syncServerToDB(server: DiscordServer) {
   if (!isSupabaseConfigured) return;
   try {
     const updateDoc: any = {
@@ -253,13 +253,6 @@ async function syncServerToDB(server: DiscordServer, updateFields?: string[]) {
       updated_at: new Date()
     };
 
-    // 필드 단위 업데이트가 요청된 경우 (추천수 증가 등)
-    if (updateFields && (updateFields.includes('recommendations') || updateFields.includes('clicks'))) {
-      // Supabase RPC나 Increment를 사용할 수도 있지만, 
-      // 여기서는 간단히 전체 문서를 upsert 처리합니다. 
-      // (완벽한 아토믹 처리가 필요하다면 rpc('increment_server_stat')를 권장)
-    }
-
     const { error } = await supabase
       .from('servers')
       .upsert(updateDoc);
@@ -268,8 +261,36 @@ async function syncServerToDB(server: DiscordServer, updateFields?: string[]) {
     console.log(`✅ [Supabase Sync] 완료 (ID: ${server.id})`);
   } catch (e) {
     console.error('❌ [Supabase Sync] 실패:', e);
-    showToast('데이터베이스 동기화에 실패했습니다. (콘솔 확인)', 'error');
+    // 개별 동기화 실패 시 알림은 일괄 동기화 시 소음이 될 수 있으므로 생략하거나 상세 로깅
   }
+}
+
+/**
+ * [Batch] 현재 로컬/JSON에 있는 모든 서버를 SQL로 일괄 동기화
+ */
+async function syncAllServersToDB(silent = false) {
+  if (!isSupabaseConfigured || servers.length === 0) return;
+  
+  if (!silent) {
+    const confirmed = await showConfirm(`현재 사이트에 표시된 ${servers.length}개의 서버를\n데이터베이스(SQL)와 동기화하시겠습니까?`);
+    if (!confirmed) return;
+  }
+
+  showToast('💾 SQL 동기화 시작...', 'info');
+  
+  let successCount = 0;
+  for (const server of servers) {
+    try {
+      // syncServerToDB가 이미 upsert 방식이므로 안전합니다.
+      await syncServerToDB(server);
+      successCount++;
+    } catch (e) {
+      console.error(`[Sync Fail] ID: ${server.id}`, e);
+    }
+  }
+
+  showToast(`✅ 동기화 완료 (${successCount}/${servers.length}개 성공)`, 'success');
+  console.log(`🚀 [Migration] SQL 동기화 완료: ${successCount}/${servers.length}`);
 }
 
 // ========== 추천 시스템 관련 상수 및 유저 ID 함수 ==========
@@ -439,7 +460,7 @@ function addRecommendation(serverId: number) {
   if (server) {
     server.recommendations = (server.recommendations || 0) + 1;
     saveServers();
-    syncServerToDB(server, ['recommendations']); // 아토믹 추천 수 증가
+    syncServerToDB(server); // 아토믹 추천 수 증가
     logUserActivity('로샵 추천', server?.name || `ID: ${serverId}`);
     return true;
   }
@@ -1273,7 +1294,7 @@ function openDetailModal(id: number) {
   // 클릭 수 증가
   server.clicks = (server.clicks || 0) + 1;
   saveServers();
-  syncServerToDB(server, ['clicks']); // 아토믹 클릭 수 증가
+  syncServerToDB(server); // 아토믹 클릭 수 증가
   logUserActivity('서버 상세 보기', server.name);
 
   const modal = detailModal();
@@ -1406,6 +1427,7 @@ function openAdminDashboard() {
 
     <div style="padding-top:1.2rem;border-top:1px solid rgba(255,255,255,0.08);display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
       <div style="flex:1;color:var(--text-secondary);font-size:0.82rem;"><span style="color:var(--accent-color);">RoFolder</span> Admin Hub v2.2.0 (Latest)</div>
+      <button id="sql-sync-btn" style="padding:0.5rem 1rem;background:rgba(139, 92, 246, 0.15);border:1px solid rgba(139, 92, 246, 0.3);color:#a78bfa;border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">🗄️ SQL 동기화</button>
       <button id="webhook-test-btn" style="padding:0.5rem 1rem;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981;border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">🔗 웹훅 테스트</button>
       <button id="manual-backup-btn" style="padding:0.5rem 1rem;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);color:var(--accent-color);border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">📦 지금 백업</button>
       <button id="admin-logout-btn" style="padding:0.5rem 1.2rem;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#f87171;border-radius:0.5rem;cursor:pointer;font-weight:bold;font-size:0.82rem;">🚪 로그아웃</button>
@@ -1422,6 +1444,15 @@ function openAdminDashboard() {
       showToast('로그아웃 완료', 'success');
     }
   };
+
+  const sqlSyncBtn = document.getElementById('sql-sync-btn');
+  if (sqlSyncBtn) {
+    sqlSyncBtn.onclick = async () => {
+      sqlSyncBtn.innerText = '⏳ 동기화 중...';
+      await syncAllServersToDB();
+      sqlSyncBtn.innerText = '🗄️ SQL 동기화';
+    };
+  }
 
   const manualBackupBtn = document.getElementById('manual-backup-btn');
   if (manualBackupBtn) {
@@ -2533,6 +2564,18 @@ function openAdminLoginPrompt() {
       modal.classList.add('hidden');
       modal.style.display = 'none';
       showToast('🔓 관리자 인증 성공!', 'success');
+      
+      // 자동 동기화 체크 (Supabase가 비어있는데 로컬 데이터가 있는 경우)
+      setTimeout(async () => {
+        const dbCount = servers.filter(s => s.status === 'approved').length;
+        if (dbCount === 0 && servers.length > 0) {
+          const migrate = await showConfirm(`[데이터 이전 알림]\n현재 데이터베이스(SQL)가 비어있습니다.\n기본 로컬 데이터(${servers.length}개)를 SQL로 이전하시겠습니까?`);
+          if (migrate) {
+            await syncAllServersToDB(true);
+          }
+        }
+      }, 1000);
+
       setTimeout(() => openAdminDashboard(), 300);
     } else {
       adminPasswordAttempts++;
