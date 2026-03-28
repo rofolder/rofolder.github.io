@@ -99,7 +99,7 @@ async function startRealTimePolling() {
   
   serverSubscription = supabase
     .channel('servers-changes')
-    .on('postgres_changes', { event: '*', table: 'servers', schema: 'public' }, async (payload) => {
+    .on('postgres_changes' as any, { event: '*', table: 'servers', schema: 'public' }, async (payload: any) => {
       console.log('🔄 [Supabase] 데이터 변경 감지:', payload.eventType);
       
       const newServers = await loadServers();
@@ -1162,13 +1162,14 @@ function openPromoBanner() {
     saveServers();
     await syncServerToDB(newServer);
 
-    // [Webhook] 등록 요청 전송 (안정성을 위해 간소화된 페이로드 테스트)
-    const webhookSuccess = await sendWebhook({
+    // [Webhook] 등록 요청 전송 (안정성을 위해 이미지 첨부 포함)
+    const webhookPayload = {
       content: `<@${config.adminDiscordId}> 🚀 **새로운 서버 등록 요청이 도착했습니다!**`,
       embeds: [{
         title: '💎 RoFolder 서버 등록 요청',
         description: `**${sanitizeDiscordText(nameInput)}** 커뮤니티의 홍보 신청이 접수되었습니다.`,
         color: 0x6366f1,
+        thumbnail: { url: 'attachment://icon.png' },
         fields: [
           { name: '🆔 신청 ID', value: `\`${newServer.id}\``, inline: true },
           { name: '⏳ 상태', value: '`승인 대기 중`', inline: true },
@@ -1181,7 +1182,26 @@ function openPromoBanner() {
         footer: { text: 'RoFolder Premium Management System' },
         timestamp: new Date().toISOString()
       }]
-    });
+    };
+
+    let webhookSuccess = false;
+    if (newServer.icon && newServer.icon.startsWith('data:image')) {
+      // 이미지 파일로 전송
+      const formData = new FormData();
+      formData.append('payload_json', JSON.stringify(webhookPayload));
+      
+      try {
+        const resp = await fetch(newServer.icon);
+        const blob = await resp.blob();
+        formData.append('file', blob, 'icon.png');
+        webhookSuccess = await sendWebhook(formData, true);
+      } catch (err) {
+        console.error('이미지 웹훅 전송 실패:', err);
+        webhookSuccess = await sendWebhook(webhookPayload); // 이미지 없이 재시도
+      }
+    } else {
+      webhookSuccess = await sendWebhook(webhookPayload);
+    }
 
     const successMsg = webhookSuccess 
       ? '✅ 홍보 신청이 완료되었습니다!\n관리자 검토 후 승인하겠습니다.'
@@ -2246,7 +2266,10 @@ async function logAdminAccess(action = '로그인') {
     try {
       await supabase.from('logs').insert(logData);
     } catch (e) {
-      console.error('관리자 로그 DB 저장 실패:', e);
+      // logs 테이블이 없는 경우(404)를 포함하여 에러가 발생해도 사이트 동작에는 지장 없게 처리
+      if (!String(e).includes('404')) {
+        console.warn('활동 로그 DB 저장 스킵 (테이블 확인 필요)');
+      }
     }
   }
 }
@@ -2273,7 +2296,10 @@ async function logUserActivity(action: string, details?: string) {
     try {
       await supabase.from('logs').insert(logData);
     } catch (e) {
-      console.error('유저 로그 DB 저장 실패:', e);
+      // logs 테이블이 없는 경우(404)를 포함하여 에러가 발생해도 사이트 동작에는 지장 없게 처리
+      if (!String(e).includes('404')) {
+        console.warn('활동 로그 DB 저장 스킵 (테이블 확인 필요)');
+      }
     }
   }
 }
@@ -3050,7 +3076,7 @@ async function showIPApprovalUI(ip: string) {
   const statusEl = document.getElementById('ip-send-status')!;
   const sent = await sendIPApprovalEmail(ip);
   if (sent) {
-    statusEl.innerHTML = `✅ <strong style="color:#a5b4fc;">seoharo0111@gmail.com</strong>으로<br>승인 이메일을 발송했습니다.<br><span style="font-size:0.82rem;color:#64748b;margin-top:0.5rem;display:block;">이메일의 [IP 승인] 버튼을 클릭하면 이 기기에서 관리자 접근이 허용됩니다.</span>`;
+    statusEl.innerHTML = `✅ <strong style="color:#a5b4fc;">${config.adminEmail}</strong>으로<br>승인 이메일을 발송했습니다.<br><span style="font-size:0.82rem;color:#64748b;margin-top:0.5rem;display:block;">이메일의 [IP 승인] 버튼을 클릭하면 이 기기에서 관리자 접근이 허용됩니다.</span>`;
   } else {
     statusEl.innerHTML = '❌ 이메일 전송에 실패했습니다. 콘솔을 확인해주세요.';
   }

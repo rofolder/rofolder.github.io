@@ -1,13 +1,10 @@
-/**
- * RoFolder Admin Auth Module
- * IP 검증 + EmailJS 이메일 승인 + Discord OAuth2 + 비밀번호 4단계 인증
- */
+import { config } from './config';
 
 // ===== 설정 =====
-const EMAILJS_SERVICE_ID = 'service_30770wr';
-const EMAILJS_PUBLIC_KEY = 'vKafwZvic8dw3untb';
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_hn1n1qq';
-const ADMIN_EMAIL = 'seoharo0111@gmail.com';
+const EMAILJS_SERVICE_ID = config.emailjsServiceId;
+const EMAILJS_PUBLIC_KEY = config.emailjsPublicKey;
+const EMAILJS_TEMPLATE_ID = config.emailjsTemplateId;
+const ADMIN_EMAIL = config.adminEmail;
 const SITE_URL = 'https://rofolder.kro.kr';
 
 // ===== 스토리지 키 =====

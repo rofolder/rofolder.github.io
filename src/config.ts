@@ -97,12 +97,12 @@ export const config = {
   adminPassword: import.meta.env.VITE_ADMIN_PASSWORD,
   
   // 2단계 인증용 디스코드 설정
-  discordClientId: '1484757824960725083',
-  adminDiscordId: '1312208363358126183', // 관리자 본인 ID
+  discordClientId: import.meta.env.VITE_DISCORD_CLIENT_ID || '1484757824960725083',
+  adminDiscordId: import.meta.env.VITE_ADMIN_DISCORD_ID || '1312208363358126183', // 관리자 본인 ID
 
   // 이메일 승인 (IP 화이트리스트용)
-  adminEmail: 'seoharo0111@gmail.com',
-  emailjsServiceId: 'service_30770wr',
-  emailjsPublicKey: 'vKafwZvic8dw3untb',
+  adminEmail: import.meta.env.VITE_ADMIN_EMAIL || 'seoharo0111@gmail.com',
+  emailjsServiceId: import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_30770wr',
+  emailjsPublicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'vKafwZvic8dw3untb',
   emailjsTemplateId: import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'template_hn1n1qq',
 };

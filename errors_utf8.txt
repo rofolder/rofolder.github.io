@@ -1,0 +1,7 @@
+﻿src/main.ts(35,7): error TS6133: 'initialServers' is declared but its value is never read.
+src/main.ts(65,9): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '"postgres_changes"' is not assignable to parameter of type '"system"'.
+src/main.ts(65,70): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/main.ts(1445,17): error TS6133: 'serverToDelete' is declared but its value is never read.
+
