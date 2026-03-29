@@ -9,6 +9,8 @@
  * @returns 이스케이프된 텍스트
  */
 export function escapeHtml(text: string): string {
+  if (text == null) return '';
+  const str = String(text);
   const map: { [key: string]: string } = {
     '&': '&amp;',
     '<': '&lt;',
@@ -17,7 +19,7 @@ export function escapeHtml(text: string): string {
     "'": '&#39;',
     '/': '&#x2F;'
   };
-  return text.replace(/[&<>"'\/]/g, char => map[char] || char);
+  return str.replace(/[&<>"'\/]/g, char => map[char] || char);
 }
 
 /**
@@ -26,7 +28,8 @@ export function escapeHtml(text: string): string {
  * @returns Discord 안전 텍스트
  */
 export function sanitizeDiscordText(text: string): string {
-  return text
+  if (text == null) return '';
+  return String(text)
     .replace(/`/g, '\\`')
     .replace(/\*/g, '\\*')
     .replace(/_/g, '\\_')
