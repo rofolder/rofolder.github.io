@@ -1638,14 +1638,14 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
   // 이벤트 리스너 등록
   container.querySelectorAll('.approve-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
+      const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
       approveServer(id);
     });
   });
 
   container.querySelectorAll('.reject-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
-      const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
+      const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
       const reason = await showPromptModal('거절 사유를 입력해주세요:', '예: 서버 규칙 위반');
       if (reason) {
         rejectServer(id, reason);
@@ -1655,14 +1655,14 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
 
   container.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
+      const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
       editServer(id);
     });
   });
 
   container.querySelectorAll('.delete-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
-      const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
+      const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
       const confirmed = await showConfirm('정말 이 서버를 삭제하시겠습니까?');
       if (confirmed) {
         deleteServer(id);
@@ -1672,7 +1672,7 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
 
   container.querySelectorAll('.rereview-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const id = parseInt((e.target as HTMLButtonElement).dataset.id!);
+      const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
       updateServerStatus(id, 'pending');
     });
   });
@@ -2073,7 +2073,7 @@ function editServer(id: number) {
         <label>카테고리 선택</label>
         <div id="category-chips" class="category-chips">
           ${config.serverTags.map((tag) => `
-            <button type="button" class="chip${server.tags.includes(tag.value) || tag.value === server.category ? ' active' : ''}" data-value="${tag.value}">
+            <button type="button" class="chip${(server.tags || []).includes(tag.value) || tag.value === server.category ? ' active' : ''}" data-value="${tag.value}">
               ${tag.emoji} ${tag.label}
             </button>
           `).join('')}
@@ -2092,12 +2092,12 @@ function editServer(id: number) {
         <label>🏆 관리자 태그 선택</label>
         <div class="admin-tag-selector">
           ${config.adminOnlyTags.map(tag => `
-            <button type="button" class="admin-tag-chip${server.tags.includes(tag.value) ? ' selected' : ''}" data-tag-value="${tag.value}" data-tag-label="${tag.label}">
+            <button type="button" class="admin-tag-chip${(server.tags || []).includes(tag.value) ? ' selected' : ''}" data-tag-value="${tag.value}" data-tag-label="${tag.label}">
               ${tag.emoji} ${tag.label}
             </button>
           `).join('')}
         </div>
-        <input type="hidden" id="admin-tags" value="${server.tags.filter(t => config.adminOnlyTags.map(a => a.value).includes(t)).join(',')}">
+        <input type="hidden" id="admin-tags" value="${(server.tags || []).filter(t => config.adminOnlyTags.map(a => a.value).includes(t)).join(',')}">
       </div>
       <div style="display: flex; gap: 1rem;">
         <button type="submit" class="submit-button" style="flex: 1;">💾 저장</button>
