@@ -164,7 +164,7 @@ function loadServersFromLocal(): DiscordServer[] {
             icon: s.icon || '',
             tags: s.tags || [],
             inviteLink: s.inviteLink || s.invite_link || '',
-            status: s.status || 'approved',
+            status: s.status || 'pending',
             recommendations: s.recommendations || 0,
             clicks: s.clicks || 0
           };
@@ -505,6 +505,26 @@ function getTagColor(tagValue: string): { color: string; bgColor: string } {
   return { color: '#6366f1', bgColor: '#6366f120' };
 }
 
+// 신규 서버 판별 (등록된지 24시간 이내)
+const NEW_SERVER_DURATION_MS = 24 * 60 * 60 * 1000; // 24시간
+
+function isNewServer(server: DiscordServer): boolean {
+  if (server.status !== 'approved') return false;
+  // 등록 시점(createdAt) 기준으로 24시간 계산
+  const referenceTime = server.createdAt || server.approvedAt || 0;
+  if (!referenceTime) return false;
+  return (Date.now() - referenceTime) < NEW_SERVER_DURATION_MS;
+}
+
+// 서버의 동적 태그 목록 생성 (신규 태그 자동 추가/제거)
+function getServerTags(server: DiscordServer): string[] {
+  const tags = server.tags.filter(t => t !== '신규'); // 기존 정적 '신규' 태그 제거
+  if (isNewServer(server)) {
+    tags.unshift('신규'); // 신규 태그를 맨 앞에 추가
+  }
+  return tags;
+}
+
 // 고급 콘텐츠 필터링 함수
 function containsForbiddenContent(text: string): boolean {
   return forbiddenWords.some(word => {
@@ -526,10 +546,20 @@ function applyFilters() {
     if (s.status !== 'approved') return false;
     
     const isBusinessCategory = currentCategory === '사업팀';
-    const matchCategory = currentCategory === '전체' || 
-                          s.category === currentCategory || 
-                          s.tags.includes(currentCategory) ||
-                          (isBusinessCategory && s.tags.includes('사업팀(로폴더)'));
+    const isNewCategory = currentCategory === '신규';
+    const dynamicTags = getServerTags(s);
+    
+    let matchCategory = false;
+    if (currentCategory === '전체') {
+      matchCategory = true;
+    } else if (isNewCategory) {
+      matchCategory = isNewServer(s);
+    } else if (isBusinessCategory) {
+      matchCategory = s.category === '사업팀' || dynamicTags.includes('사업팀(로폴더)');
+    } else {
+      matchCategory = s.category === currentCategory || dynamicTags.includes(currentCategory);
+    }
+    
     const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                         s.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCategory && matchSearch;
@@ -897,9 +927,10 @@ function renderServers() {
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.8rem 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(server.description)}</p>
                 <div style="display: flex; gap: 0.4rem; margin-bottom: 0.8rem; flex-wrap: wrap;">
-                  ${server.tags.slice(0, 5).map((tag: string) => {
+                  ${getServerTags(server).slice(0, 5).map((tag: string) => {
                     const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find((t: any) => t.value === tag);
-                    return `<span class="server-tag" style="background: ${tagConfig?.bgColor || 'rgba(255,255,255,0.05)'}; color: ${tagConfig?.color || 'var(--text-secondary)'}; padding: 3px 9px; font-size: 0.73rem;">${tagConfig?.emoji || ''} ${escapeHtml(tag)}</span>`;
+                    const isNewTag = tag === '신규';
+                    return `<span class="server-tag${isNewTag ? ' server-tag-new' : ''}" style="background: ${tagConfig?.bgColor || 'rgba(255,255,255,0.05)'}; color: ${tagConfig?.color || 'var(--text-secondary)'}; padding: 3px 9px; font-size: 0.73rem;">${tagConfig?.emoji || ''} ${escapeHtml(tag)}</span>`;
                   }).join('')}
                 </div>
                 <div style="display: flex; gap: 1rem; font-size: 0.8rem; margin-bottom: 1rem; padding: 0.6rem; background: rgba(99, 102, 241, 0.05); border-radius: 0.5rem;">
@@ -923,16 +954,21 @@ function renderServers() {
     }
   }
 
-  grid.innerHTML = carouselHTML + topServersHTML + pagedServers.map((server, idx) => `
-    <div class="server-card glass" data-id="${server.id}" style="animation-delay: ${(currentPage === 1 ? 0.5 : 0) + (idx * 0.05)}s;">
+  grid.innerHTML = carouselHTML + topServersHTML + pagedServers.map((server, idx) => {
+    const dynamicTags = getServerTags(server);
+    const isNew = isNewServer(server);
+    return `
+    <div class="server-card glass${isNew ? ' server-card-new' : ''}" data-id="${server.id}" style="animation-delay: ${(currentPage === 1 ? 0.5 : 0) + (idx * 0.05)}s;">
+      ${isNew ? '<div class="new-badge-ribbon">🆕 신규</div>' : ''}
       <div class="server-header">
         <img src="${escapeHtml(server.icon)}" class="server-icon loading" alt="${escapeHtml(server.name)}" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'; this.classList.remove('loading');" onload="this.classList.remove('loading');">
         <div class="server-info">
           <h3>${escapeHtml(server.name)}</h3>
           <div class="server-tags">
-            ${server.tags.map((tag: string) => {
+            ${dynamicTags.map((tag: string) => {
               const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find((t: any) => t.value === tag);
-              return `<span class="server-tag">${tagConfig?.emoji || '🏷️'} ${escapeHtml(tag)}</span>`;
+              const isNewTag = tag === '신규';
+              return `<span class="server-tag${isNewTag ? ' server-tag-new' : ''}" style="${isNewTag ? `background: ${tagConfig?.bgColor || 'rgba(34,197,94,0.18)'}; color: ${tagConfig?.color || '#22c55e'};` : ''}">${tagConfig?.emoji || '🏷️'} ${escapeHtml(tag)}</span>`;
             }).join('')}
           </div>
         </div>
@@ -942,7 +978,8 @@ function renderServers() {
         <button class="detail-button" data-id="${server.id}">상세 정보 보기</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   grid.querySelectorAll('.detail-button').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -1173,7 +1210,7 @@ function openPromoBanner() {
       description: descInput,
       category: selectedCategories[0], // 첫 카테고리를 기본값으로
       icon: iconData,
-      tags: ['신규', ...selectedCategories], // 선택된 모든 카테고리를 tags에 추가
+      tags: [...selectedCategories], // 선택된 모든 카테고리를 tags에 추가 (신규 태그는 승인 시 동적으로 추가됨)
       inviteLink: linkInput,
       status: 'pending',
       createdAt: Date.now()
@@ -1300,11 +1337,12 @@ function openDetailModal(id: number) {
   const modal = detailModal();
   const content = document.getElementById('detail-modal-content')!;
   
-  // 태그 색상 적용
-  const tagHTML = server.tags.map(tag => {
+  // 태그 색상 적용 (동적 신규 태그 포함)
+  const tagHTML = getServerTags(server).map(tag => {
     const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find(t => t.value === tag);
     const { color, bgColor } = getTagColor(tag);
-    return `<span class="server-tag" style="padding: 6px 16px; font-size: 0.95rem; background: ${bgColor}; color: ${color};">${tagConfig?.emoji || ''} ${escapeHtml(tag)}</span>`;
+    const isNewTag = tag === '신규';
+    return `<span class="server-tag${isNewTag ? ' server-tag-new' : ''}" style="padding: 6px 16px; font-size: 0.95rem; background: ${bgColor}; color: ${color};">${tagConfig?.emoji || ''} ${escapeHtml(tag)}</span>`;
   }).join('');
   
   content.innerHTML = `
@@ -1949,6 +1987,9 @@ function approveServer(id: number) {
 
   server.status = 'approved';
   server.approvedAt = Date.now();
+  // 신규 태그는 동적으로 계산되므로 정적으로 추가하지 않음
+  // 기존 '신규' 정적 태그가 있으면 제거
+  server.tags = server.tags.filter(t => t !== '신규');
   server.tags = Array.from(new Set([...server.tags, '인증됨']));
   
   saveServers();
