@@ -109,8 +109,8 @@ async function startRealTimePolling() {
         refreshAdminDashboardIfOpen();
         
         // 실시간 갱신 시 간단한 알림 (이미 승인된 것만 등)
-        if (payload.eventType === 'INSERT') {
-          showToast('🔔 새로운 서버가 등록되었습니다.', 'info');
+        if (payload.eventType === 'INSERT' && payload.new?.status === 'approved') {
+          showToast('🔔 새로운 서버가 추가되었습니다!', 'info');
         }
       }
     })
@@ -510,8 +510,8 @@ const NEW_SERVER_DURATION_MS = 24 * 60 * 60 * 1000; // 24시간
 
 function isNewServer(server: DiscordServer): boolean {
   if (server.status !== 'approved') return false;
-  // 등록 시점(createdAt) 기준으로 24시간 계산
-  const referenceTime = server.createdAt || server.approvedAt || 0;
+  // 승인 시점(approvedAt) 기준으로 24시간 계산
+  const referenceTime = server.approvedAt || server.createdAt || 0;
   if (!referenceTime) return false;
   return (Date.now() - referenceTime) < NEW_SERVER_DURATION_MS;
 }
@@ -1619,15 +1619,17 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
       ` : ''}
       <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
         ${status === 'pending' ? `
-          <button class="submit-button approve-btn" data-id="${server.id}" style="flex: 1; min-width: 120px; background: #10b981; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✅ 승인</button>
-          <button class="submit-button reject-btn" data-id="${server.id}" style="flex: 1; min-width: 120px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">❌ 거절</button>
+          <button class="submit-button approve-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #10b981; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✅ 승인</button>
+          <button class="submit-button edit-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #3b82f6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✏️ 수정</button>
+          <button class="submit-button reject-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">❌ 거절</button>
         ` : status === 'approved' ? `
           <button class="submit-button edit-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #3b82f6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✏️ 수정</button>
           <button class="submit-button reject-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #f59e0b; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">⬇️ 거절</button>
           <button class="submit-button delete-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🗑️ 삭제</button>
         ` : `
-          <button class="submit-button rereview-btn" data-id="${server.id}" style="flex: 1; min-width: 120px; background: #8b5cf6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🔄 재검토</button>
-          <button class="submit-button delete-btn" data-id="${server.id}" style="flex: 1; min-width: 120px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🗑️ 삭제</button>
+          <button class="submit-button edit-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #3b82f6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✏️ 수정</button>
+          <button class="submit-button rereview-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #8b5cf6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🔄 재검토</button>
+          <button class="submit-button delete-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🗑️ 삭제</button>
         `}
       </div>
     </div>
@@ -1990,7 +1992,6 @@ function approveServer(id: number) {
   // 신규 태그는 동적으로 계산되므로 정적으로 추가하지 않음
   // 기존 '신규' 정적 태그가 있으면 제거
   server.tags = server.tags.filter(t => t !== '신규');
-  server.tags = Array.from(new Set([...server.tags, '인증됨']));
   
   saveServers();
   syncServerToDB(server); // DB 동기화
