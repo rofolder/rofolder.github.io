@@ -2106,9 +2106,18 @@ function editServer(id: number) {
     </form>
   `;
 
+  const adminModal = document.getElementById('admin-modal-container');
+  if (adminModal) adminModal.style.display = 'none'; // 관리자 창 뒤로 숨김
+
   modal.classList.remove('hidden');
-  document.getElementById('close-reg-modal')!.onclick = () => modal.classList.add('hidden');
-  document.getElementById('cancel-edit')!.onclick = () => modal.classList.add('hidden');
+  
+  const close = () => {
+    modal.classList.add('hidden');
+    if (adminModal) adminModal.style.display = ''; // 관리자 창 복구
+  };
+  
+  document.getElementById('close-reg-modal')!.onclick = close;
+  document.getElementById('cancel-edit')!.onclick = close;
 
   const form = document.getElementById('edit-form') as HTMLFormElement;
   const iconInput = document.getElementById('icon-upload') as HTMLInputElement;
@@ -2221,7 +2230,10 @@ function editServer(id: number) {
     saveServers();
     await syncServerToDB(server); // DB 동기화
     alert('✅ 서버 정보가 수정되었습니다.');
+    
+    // 닫기 작업: 수정 폼 숨기고, 관리자 창 복구
     modal.classList.add('hidden');
+    if (adminModal) adminModal.style.display = '';
     
     // 관리자 대시보드 새로고침
     const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'approved';
