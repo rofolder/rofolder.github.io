@@ -14,6 +14,7 @@ interface DiscordServer {
   rejectionReason?: string; // 거절 사유
   recommendations?: number; // 추천 수
   clicks?: number; // 클릭 수
+  isPartner?: boolean; // 파트너 서버 여부
 }
 
 interface AdminStats {
@@ -250,6 +251,7 @@ async function syncServerToDB(server: DiscordServer) {
       rejection_reason: server.rejectionReason,
       recommendations: server.recommendations || 0,
       clicks: server.clicks || 0,
+      is_partner: server.isPartner || false,
       updated_at: new Date()
     };
 
@@ -471,7 +473,13 @@ function addRecommendation(serverId: number) {
 function getTopServersToday(): DiscordServer[] {
   return servers
     .filter(s => s.status === 'approved')
-    .sort((a, b) => (b.recommendations || 0) - (a.recommendations || 0))
+    .sort((a, b) => {
+      // 1순위: 파트너 서버 여부
+      if (a.isPartner && !b.isPartner) return -1;
+      if (!a.isPartner && b.isPartner) return 1;
+      // 2순위: 추천 수
+      return (b.recommendations || 0) - (a.recommendations || 0);
+    })
     .slice(0, 10);
 }
 
@@ -934,7 +942,10 @@ function renderServers() {
                 <div class="top-10-card-header">
                   <img src="${safeIcon}" alt="${safeName}" class="top-10-icon" loading="lazy" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
                   <div style="min-width: 0; flex: 1;">
-                    <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${safeName}</h4>
+                    <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.4rem;">
+                      ${safeName}
+                      ${server.isPartner ? `<span style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; flex-shrink: 0;">PARTNER</span>` : ''}
+                    </h4>
                     <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--accent-color); font-weight: 600;">👍 ${(server.recommendations || 0).toLocaleString()} 추천</p>
                   </div>
                 </div>
@@ -969,7 +980,10 @@ function renderServers() {
       <div class="server-header">
         <img src="${escapeHtml(server.icon)}" class="server-icon loading" alt="${escapeHtml(server.name)}" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'; this.classList.remove('loading');" onload="this.classList.remove('loading');">
         <div class="server-info">
-          <h3>${escapeHtml(server.name)}</h3>
+          <h3 style="display: flex; align-items: center; gap: 0.4rem;">
+            ${escapeHtml(server.name)}
+            ${server.isPartner ? `<span style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; flex-shrink: 0;">PARTNER</span>` : ''}
+          </h3>
           <div class="server-tags">
             ${dynamicTags.map((tag: string) => {
               const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find((t: any) => t.value === tag);
@@ -1310,7 +1324,10 @@ function showTopAllModal() {
           </div>
           <img src="${escapeHtml(server.icon)}" alt="${escapeHtml(server.name)}" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
           <div style="flex: 1;">
-            <h4 style="margin: 0 0 0.3rem 0; color: var(--text-primary); font-size: 1rem;">${escapeHtml(server.name)}</h4>
+            <h4 style="margin: 0 0 0.3rem 0; color: var(--text-primary); font-size: 1rem; display: flex; align-items: center; gap: 0.4rem;">
+              ${escapeHtml(server.name)}
+              ${server.isPartner ? `<span style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; flex-shrink: 0;">PARTNER</span>` : ''}
+            </h4>
             <p style="margin: 0 0 0.5rem 0; color: var(--text-secondary); font-size: 0.85rem;">${escapeHtml(server.description.substring(0, 60))}...</p>
             <div style="display: flex; gap: 1rem; font-size: 0.85rem;">
               ${server.tags.slice(0, 2).map(tag => {
@@ -1370,7 +1387,10 @@ function openDetailModal(id: number) {
     <div class="server-header" style="margin-bottom: 2.5rem; gap: 2rem;">
       <img id="detail-server-icon" src="${escapeHtml(server.icon)}" class="server-icon loading" style="width: 120px; height: 120px; border-radius: 28px;" alt="${escapeHtml(server.name)}" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'; this.classList.remove('loading');" onload="this.classList.remove('loading');">
       <div style="flex: 1;">
-        <h2 style="font-size: 2.2rem; margin-bottom: 0.8rem;">${escapeHtml(server.name)}</h2>
+        <h2 style="font-size: 2.2rem; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.6rem;">
+          ${escapeHtml(server.name)}
+          ${server.isPartner ? `<span style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; font-weight: 800; flex-shrink: 0;">PARTNER</span>` : ''}
+        </h2>
         <div class="server-tags">
           ${tagHTML}
         </div>
@@ -1478,6 +1498,7 @@ function openAdminDashboard() {
       <button class="admin-tab-btn" data-tab="insights">📊 인사이트</button>
       <button class="admin-tab-btn" data-tab="accesslog">🔐 접속기록</button>
       <button class="admin-tab-btn" data-tab="userlog">👥 유저활동</button>
+      <button class="admin-tab-btn" data-tab="partner">🤝 파트너</button>
     </div>
 
     <div id="admin-servers-container" style="max-height: 540px; overflow-y: auto; padding-right:0.3rem; margin-bottom: 1.5rem;">
@@ -1581,6 +1602,7 @@ function openAdminDashboard() {
     else if (tab === 'all') renderAllServers();
     else if (tab === 'accesslog') renderAdminAccessLog();
     else if (tab === 'userlog') renderUserActivityLog();
+    else if (tab === 'partner') renderPartnerTab();
     else renderAdminServersByStatus(tab as 'pending' | 'approved' | 'rejected');
   };
   tabBtns.forEach(btn => {
@@ -1801,6 +1823,91 @@ function renderAllServers() {
           showToast('서버가 삭제되었습니다.', 'success');
           renderAllServers();
         }
+      }
+    });
+  });
+}
+
+// 🤝 파트너 서버 관리 탭
+function renderPartnerTab() {
+  const container = document.getElementById('admin-servers-container')!;
+  const partnerServers = servers.filter(s => s.isPartner === true && s.status === 'approved');
+  const availableServers = servers.filter(s => s.status === 'approved' && !s.isPartner);
+
+  container.innerHTML = `
+    <div style="margin-bottom: 2rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;">
+        <h3 style="color: var(--accent-color); margin: 0; font-size: 1.1rem;">🎖️ 현재 파트너 (${partnerServers.length}개)</h3>
+        <span style="color:var(--text-muted);font-size:0.8rem;">파트너 서버는 메인 Top 10에 우선 노출됩니다</span>
+      </div>
+      ${partnerServers.length === 0 
+        ? '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">지정된 파트너 서버가 없습니다.</p>' 
+        : partnerServers.map(server => `
+        <div class="server-card glass" style="margin-bottom: 1rem; border-left: 3px solid #fbbf24;">
+          <div class="server-header" style="margin-bottom: 0.75rem;">
+            <img src="${escapeHtml(server.icon)}" class="server-icon" alt="${escapeHtml(server.name)}" style="width: 56px; height: 56px;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'">
+            <div class="server-info" style="flex: 1;">
+              <h3 style="font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                ${escapeHtml(server.name)}
+                <span style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700;">PARTNER</span>
+              </h3>
+              <p style="color: var(--text-secondary); font-size: 0.8rem; margin: 0.25rem 0 0;">${escapeHtml(server.category)} · 👍 ${server.recommendations || 0} · 👁️ ${server.clicks || 0}</p>
+            </div>
+          </div>
+          <button class="partner-remove-btn submit-button" data-id="${server.id}" style="width: 100%; background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); padding: 0.5rem; border-radius: 0.5rem; cursor: pointer; font-weight: bold; font-size: 0.85rem;">
+            ❌ 파트너 해제
+          </button>
+        </div>
+      `).join('')}
+    </div>
+
+    <div>
+      <h3 style="color: var(--text-primary); margin-bottom: 1.2rem; font-size: 1.1rem;">➕ 승인된 서버에서 파트너 지정</h3>
+      ${availableServers.length === 0 
+        ? '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">파트너로 지정할 수 있는 승인된 서버가 없습니다.</p>' 
+        : availableServers.map(server => `
+        <div class="server-card glass" style="margin-bottom: 0.75rem; padding: 0.75rem 1rem;">
+          <div style="display: flex; align-items: center; gap: 1rem;">
+            <img src="${escapeHtml(server.icon)}" style="width: 40px; height: 40px; border-radius: 12px;" alt="${escapeHtml(server.name)}" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'">
+            <div style="flex: 1; min-width: 0;">
+              <h4 style="font-size: 0.9rem; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(server.name)}</h4>
+              <span style="color: var(--text-muted); font-size: 0.75rem;">${escapeHtml(server.category)}</span>
+            </div>
+            <button class="partner-add-btn submit-button" data-id="${server.id}" style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; border: none; padding: 0.4rem 1rem; border-radius: 0.5rem; cursor: pointer; font-weight: bold; font-size: 0.8rem; white-space: nowrap;">
+              🤝 지정
+            </button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // 파트너 추가 버튼
+  container.querySelectorAll('.partner-add-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
+      const server = servers.find(s => s.id === id);
+      if (server) {
+        server.isPartner = true;
+        saveServers();
+        await syncServerToDB(server);
+        showToast(`🤝 "${server.name}"이(가) 파트너로 지정되었습니다!`, 'success');
+        renderPartnerTab();
+      }
+    });
+  });
+
+  // 파트너 해제 버튼
+  container.querySelectorAll('.partner-remove-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
+      const server = servers.find(s => s.id === id);
+      if (server) {
+        server.isPartner = false;
+        saveServers();
+        await syncServerToDB(server);
+        showToast(`❌ "${server.name}" 파트너가 해제되었습니다.`, 'info');
+        renderPartnerTab();
       }
     });
   });
@@ -2263,22 +2370,33 @@ function editServer(id: number) {
   };
 }
 
-// 서버 삭제
-function deleteServer(id: number) {
-  const index = servers.findIndex(s => s.id === id);
-  if (index === -1) return;
+// 서버 삭제 (로컬 + Supabase 동시 삭제)
+async function deleteServer(id: number) {
+  const server = servers.find(s => s.id === id);
+  if (!server) return;
 
+  const index = servers.indexOf(server);
   servers.splice(index, 1);
   saveServers();
   
-  // DB 삭제 (Supabase)
+  // DB 삭제 (Supabase) — 반드시 DB에서도 제거
   if (isSupabaseConfigured) {
-    supabase.from('servers').delete().eq('id', id).then(({ error }) => {
-      if (error) console.error('❌ [Supabase Delete] 실패:', error);
-    });
+    try {
+      const { error } = await supabase.from('servers').delete().eq('id', id);
+      if (error) {
+        console.error('❌ [Supabase Delete] 실패:', error);
+        showToast('⚠️ 로컬에서는 삭제되었으나 DB 동기화에 실패했습니다.', 'error');
+      } else {
+        console.log(`✅ [Supabase Delete] 서버 ID ${id} DB에서 삭제 완료`);
+        showToast('✅ 서버가 완전히 삭제되었습니다. (로컬 + DB)', 'success');
+      }
+    } catch (e) {
+      console.error('❌ [Supabase Delete] 예외 발생:', e);
+      showToast('⚠️ DB 삭제 중 오류가 발생했습니다.', 'error');
+    }
+  } else {
+    showToast('✅ 서버가 삭제되었습니다. (로컬)', 'success');
   }
-
-  alert('✅ 서버가 삭제되었습니다.');
   
   // 관리자 대시보드 새로고침
   const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'approved';
@@ -2964,7 +3082,13 @@ async function handleAdminAutoAction() {
 }
 
 async function init() {
-  // 0. 프리미엄 배경 주입
+  // 0. 테마 초기화 (localStorage에서 복원)
+  const savedTheme = localStorage.getItem('rofolder-theme') || 'obsidian';
+  if (savedTheme !== 'obsidian') {
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }
+
+  // 0-1. 프리미엄 배경 주입
   const bg = document.createElement('div');
   bg.className = 'background-mesh';
   bg.innerHTML = `
@@ -2991,10 +3115,48 @@ async function init() {
   const appElement = document.getElementById('app')!;
   appElement.innerHTML = `
     <header>
-      <a href="#" class="logo">
-        <img src="${config.siteLogo}" alt="${config.siteName} Logo" class="brand-logo">
-        <span>${config.siteName}</span>
-      </a>
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <div class="theme-toggle-wrapper">
+          <button class="theme-toggle-btn" id="theme-toggle-btn" title="테마 변경">🎨</button>
+          <div class="theme-panel" id="theme-panel">
+            <div class="theme-panel-title">테마 선택</div>
+            <div class="theme-swatch-grid">
+              <div class="theme-swatch-item">
+                <div class="theme-swatch" data-theme="obsidian" style="background:linear-gradient(135deg,#03040a,#6366f1);"></div>
+                <span class="theme-swatch-label">옵시디안</span>
+              </div>
+              <div class="theme-swatch-item">
+                <div class="theme-swatch" data-theme="ivory" style="background:linear-gradient(135deg,#faf8f5,#6366f1);"></div>
+                <span class="theme-swatch-label">아이보리</span>
+              </div>
+              <div class="theme-swatch-item">
+                <div class="theme-swatch" data-theme="midnight" style="background:linear-gradient(135deg,#0a0a0a,#ffffff);"></div>
+                <span class="theme-swatch-label">미드나잇</span>
+              </div>
+              <div class="theme-swatch-item">
+                <div class="theme-swatch" data-theme="olive" style="background:linear-gradient(135deg,#1a1f16,#8b9a6b);"></div>
+                <span class="theme-swatch-label">올리브</span>
+              </div>
+              <div class="theme-swatch-item">
+                <div class="theme-swatch" data-theme="earth" style="background:linear-gradient(135deg,#1c1714,#a0785a);"></div>
+                <span class="theme-swatch-label">어스</span>
+              </div>
+              <div class="theme-swatch-item">
+                <div class="theme-swatch" data-theme="forest" style="background:linear-gradient(135deg,#0d1a0d,#4caf50);"></div>
+                <span class="theme-swatch-label">포레스트</span>
+              </div>
+              <div class="theme-swatch-item">
+                <div class="theme-swatch" data-theme="sage" style="background:linear-gradient(135deg,#f5f0eb,#6b8f6b);"></div>
+                <span class="theme-swatch-label">세이지</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <a href="#" class="logo">
+          <img src="${config.siteLogo}" alt="${config.siteName} Logo" class="brand-logo">
+          <span>${config.siteName}</span>
+        </a>
+      </div>
       <div class="nav-links">
         <a href="#" class="nav-link nav-link-qa" id="header-qa-btn">Q&A</a>
         <a href="${config.originalSiteUrl}" target="_blank" class="nav-link">커뮤니티</a>
@@ -3055,6 +3217,55 @@ async function init() {
 
   renderServers();
   renderFooter();
+
+  // 테마 토글 이벤트 핸들러
+  const themeToggleBtn = document.getElementById('theme-toggle-btn');
+  const themePanel = document.getElementById('theme-panel');
+  if (themeToggleBtn && themePanel) {
+    // 토글 버튼 클릭
+    themeToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      themePanel.classList.toggle('open');
+    });
+
+    // 스와치 클릭 → 테마 적용
+    themePanel.querySelectorAll('.theme-swatch').forEach(swatch => {
+      swatch.addEventListener('click', () => {
+        const themeId = (swatch as HTMLElement).dataset.theme || 'obsidian';
+        
+        // 옵시디안(기본)이면 data-theme 속성 제거
+        if (themeId === 'obsidian') {
+          document.documentElement.removeAttribute('data-theme');
+        } else {
+          document.documentElement.setAttribute('data-theme', themeId);
+        }
+        
+        // localStorage에 저장
+        localStorage.setItem('rofolder-theme', themeId);
+        
+        // 활성 스와치 업데이트
+        themePanel.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        
+        // 패널 닫기
+        themePanel.classList.remove('open');
+        
+        showToast(`🎨 테마가 변경되었습니다: ${themeId}`, 'success');
+      });
+    });
+
+    // 현재 테마에 active 클래스 적용
+    const currentTheme = localStorage.getItem('rofolder-theme') || 'obsidian';
+    const activeSwatch = themePanel.querySelector(`.theme-swatch[data-theme="${currentTheme}"]`);
+    if (activeSwatch) activeSwatch.classList.add('active');
+
+    // 패널 외부 클릭 시 닫기
+    document.addEventListener('click', (e) => {
+      if (!themePanel.contains(e.target as Node) && e.target !== themeToggleBtn) {
+        themePanel.classList.remove('open');
+      }
+    });
+  }
   
   // 1. 이벤트 리스너 등록
   setupEventListeners();
@@ -3094,18 +3305,36 @@ function refreshAdminDashboardIfOpen() {
 document.addEventListener('DOMContentLoaded', () => {
   init().catch(err => console.error('초기화 실패:', err));
   
-  // 자동 갱신: 10초마다 서버 목록 다시 로딩 (Watch 실패 대비 - 폴링 주기 단축)
+  // 서버 데이터 해시 생성 (변경 감지용)
+  function getServersHash(data: DiscordServer[]): string {
+    return data.map(s => `${s.id}:${s.status}:${s.recommendations}:${s.clicks}`).join('|');
+  }
+
+  let lastServersHash = '';
+
+  // 자동 갱신: 120초마다 서버 목록 다시 로딩 (변경이 있을 때만 DOM 갱신)
   setInterval(async () => {
-    const newServers = await loadServers();
-    if (newServers && newServers.length > 0) {
-      // 최신순 정렬 유지
-      newServers.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      servers = newServers;
-      applyFilters();
-      refreshAdminDashboardIfOpen();
-      console.log('✅ [Heartbeat] 데이터 자동 동기화 완료');
+    try {
+      const newServers = await loadServers();
+      if (newServers && newServers.length > 0) {
+        newServers.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        
+        const newHash = getServersHash(newServers);
+        if (newHash !== lastServersHash) {
+          // 데이터가 실제로 변경된 경우에만 갱신
+          servers = newServers;
+          lastServersHash = newHash;
+          applyFilters();
+          refreshAdminDashboardIfOpen();
+          console.log('✅ [Heartbeat] 데이터 변경 감지 → UI 갱신');
+        } else {
+          console.log('💤 [Heartbeat] 변경 없음 — 건너뜀');
+        }
+      }
+    } catch (e) {
+      console.error('⚠️ [Heartbeat] 동기화 실패:', e);
     }
-  }, 60000); // 60초 (사용자 피드백: 폴링 주기 완화)
+  }, 120000); // 120초 (성능 최적화: 불필요한 DOM 재구축 방지)
 });
 
 // ---------------------------------------------------------

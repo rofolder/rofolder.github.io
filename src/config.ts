@@ -59,7 +59,7 @@ export const config = {
   
   // 운영자만 선택 가능한 태그
   adminOnlyTags: [
-    { emoji: '🆕', label: '신규', value: '신규', color: '#22c55e', bgColor: 'rgba(34, 197, 94, 0.18)' },
+    { emoji: '⏰', label: '신규', value: '신규', color: '#22c55e', bgColor: 'rgba(34, 197, 94, 0.18)' },
     { emoji: '⭐', label: '인기', value: '인기', color: '#fa8231', bgColor: 'rgba(250, 130, 49, 0.15)' },
     { emoji: '✅', label: '인증됨', value: '인증됨', color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.15)' },
     { emoji: '🏢', label: '사업팀(로폴더)', value: '사업팀(로폴더)', color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.15)' },

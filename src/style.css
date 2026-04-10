@@ -13,6 +13,111 @@
   --transition-smooth: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
   --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.5);
+  --mesh-1: rgba(99, 102, 241, 0.25);
+  --mesh-2: rgba(139, 92, 246, 0.2);
+  --mesh-3: rgba(236, 72, 153, 0.15);
+}
+
+/* ── 아이보리 (Ivory) ── */
+[data-theme="ivory"] {
+  --bg-color: #faf8f5;
+  --card-bg: rgba(255, 255, 255, 0.7);
+  --card-border: rgba(0, 0, 0, 0.08);
+  --accent-color: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.2);
+  --text-primary: #1a1a2e;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
+  --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.1);
+  --mesh-1: rgba(99, 102, 241, 0.08);
+  --mesh-2: rgba(139, 92, 246, 0.06);
+  --mesh-3: rgba(236, 72, 153, 0.05);
+}
+
+/* ── 미드나잇 (Midnight) — 순수 B&W ── */
+[data-theme="midnight"] {
+  --bg-color: #0a0a0a;
+  --card-bg: rgba(20, 20, 20, 0.6);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --accent-color: #ffffff;
+  --accent-glow: rgba(255, 255, 255, 0.15);
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --accent-gradient: linear-gradient(135deg, #ffffff, #d4d4d4);
+  --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.7);
+  --mesh-1: rgba(255, 255, 255, 0.04);
+  --mesh-2: rgba(255, 255, 255, 0.03);
+  --mesh-3: rgba(255, 255, 255, 0.02);
+}
+
+/* ── 올리브 (Olive) — 뮤트 그린 ── */
+[data-theme="olive"] {
+  --bg-color: #1a1f16;
+  --card-bg: rgba(30, 38, 24, 0.5);
+  --card-border: rgba(139, 154, 107, 0.15);
+  --accent-color: #8b9a6b;
+  --accent-glow: rgba(139, 154, 107, 0.25);
+  --text-primary: #e8e4d9;
+  --text-secondary: #a8a08e;
+  --text-muted: #706b5e;
+  --accent-gradient: linear-gradient(135deg, #8b9a6b, #6b7a4b);
+  --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.5);
+  --mesh-1: rgba(139, 154, 107, 0.12);
+  --mesh-2: rgba(107, 122, 75, 0.1);
+  --mesh-3: rgba(160, 170, 130, 0.08);
+}
+
+/* ── 어스 (Earth) — 웜 브라운 ── */
+[data-theme="earth"] {
+  --bg-color: #1c1714;
+  --card-bg: rgba(40, 30, 24, 0.5);
+  --card-border: rgba(160, 120, 90, 0.15);
+  --accent-color: #a0785a;
+  --accent-glow: rgba(160, 120, 90, 0.25);
+  --text-primary: #e8ddd4;
+  --text-secondary: #b0a090;
+  --text-muted: #7a6b5e;
+  --accent-gradient: linear-gradient(135deg, #a0785a, #c09070);
+  --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.5);
+  --mesh-1: rgba(160, 120, 90, 0.12);
+  --mesh-2: rgba(192, 144, 112, 0.1);
+  --mesh-3: rgba(120, 90, 60, 0.08);
+}
+
+/* ── 포레스트 (Forest) — 딥 그린 ── */
+[data-theme="forest"] {
+  --bg-color: #0d1a0d;
+  --card-bg: rgba(16, 32, 16, 0.5);
+  --card-border: rgba(76, 175, 80, 0.12);
+  --accent-color: #4caf50;
+  --accent-glow: rgba(76, 175, 80, 0.25);
+  --text-primary: #c8e6c9;
+  --text-secondary: #81c784;
+  --text-muted: #4a6e4b;
+  --accent-gradient: linear-gradient(135deg, #4caf50, #2e7d32);
+  --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.5);
+  --mesh-1: rgba(76, 175, 80, 0.1);
+  --mesh-2: rgba(46, 125, 50, 0.08);
+  --mesh-3: rgba(129, 199, 132, 0.06);
+}
+
+/* ── 세이지 (Sage) — 밝은 그린 ── */
+[data-theme="sage"] {
+  --bg-color: #f5f0eb;
+  --card-bg: rgba(255, 255, 255, 0.6);
+  --card-border: rgba(107, 143, 107, 0.15);
+  --accent-color: #6b8f6b;
+  --accent-glow: rgba(107, 143, 107, 0.2);
+  --text-primary: #2d3a2d;
+  --text-secondary: #5a6e5a;
+  --text-muted: #8a9a8a;
+  --accent-gradient: linear-gradient(135deg, #6b8f6b, #4a6e4a);
+  --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.08);
+  --mesh-1: rgba(107, 143, 107, 0.06);
+  --mesh-2: rgba(74, 110, 74, 0.05);
+  --mesh-3: rgba(139, 174, 139, 0.04);
 }
 
 * {
@@ -60,9 +165,9 @@ body {
   animation: meshFlow 25s infinite alternate;
 }
 
-.mesh-1 { background: #6366f1; top: -20%; left: -10%; animation-delay: 0s; }
-.mesh-2 { background: #8b5cf6; bottom: -20%; right: -10%; animation-delay: -5s; }
-.mesh-3 { background: #06b6d4; top: 40%; right: 10%; animation-delay: -10s; }
+.mesh-1 { background: var(--mesh-1, #6366f1); top: -20%; left: -10%; animation-delay: 0s; }
+.mesh-2 { background: var(--mesh-2, #8b5cf6); bottom: -20%; right: -10%; animation-delay: -5s; }
+.mesh-3 { background: var(--mesh-3, #06b6d4); top: 40%; right: 10%; animation-delay: -10s; }
 
 @keyframes meshFlow {
   0% { transform: translate(0, 0) scale(1) rotate(0deg); }
@@ -76,6 +181,126 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
   opacity: 0.03;
   pointer-events: none;
+}
+
+/* ── 테마 토글 패널 ── */
+.theme-toggle-wrapper {
+  position: relative;
+  z-index: 100;
+}
+
+.theme-toggle-btn {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 1.3rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 14px;
+  transition: var(--transition-smooth);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.theme-toggle-btn:hover {
+  transform: scale(1.1) rotate(15deg);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.theme-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  width: 260px;
+  background: var(--card-bg);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 1.2rem;
+  box-shadow: var(--glass-shadow);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px) scale(0.96);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 1000;
+}
+
+.theme-panel.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.theme-panel-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.9rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.theme-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.6rem;
+}
+
+.theme-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-swatch:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+.theme-swatch.active {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  transform: scale(1.1);
+}
+
+.theme-swatch::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.theme-swatch-label {
+  font-size: 0.65rem;
+  text-align: center;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theme-swatch-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 /* 리퀴드 글래스(Liquid Glass) 스타일 */
@@ -236,7 +461,7 @@ header {
   background: transparent;
   border: none;
   padding: 1rem 1.5rem;
-  color: white;
+  color: var(--text-primary);
   font-size: 1.1rem;
   outline: none;
 }
@@ -370,7 +595,7 @@ header {
 }
 
 .feature-card:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--card-bg);
   transform: translateY(-10px);
 }
 
@@ -488,8 +713,8 @@ header {
 }
 
 .filter-bar.stuck {
-  background: rgba(13, 13, 13, 0.6);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  background: var(--card-bg);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
   padding: 0.8rem 1.5rem;
   border-color: var(--accent-color);
   max-width: fit-content;
@@ -725,7 +950,7 @@ header {
   height: 64px;
   border-radius: 18px;
   object-fit: cover;
-  background: #1a1a1a;
+  background: var(--card-border);
 }
 
 .server-info h3 {
@@ -930,7 +1155,7 @@ header {
   border: 1px solid var(--card-border);
   border-radius: 14px;
   padding: 0.9rem 1.2rem;
-  color: white;
+  color: var(--text-primary);
   font-family: inherit;
   font-size: 1rem;
   outline: none;
