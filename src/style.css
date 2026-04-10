@@ -1,25 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
 
 :root {
-  --bg-color: #050505;
-  --card-bg: rgba(255, 255, 255, 0.02);
-  --card-border: rgba(255, 255, 255, 0.05);
+  --bg-color: #03040a;
+  --card-bg: rgba(13, 14, 25, 0.4);
+  --card-border: rgba(255, 255, 255, 0.06);
   --accent-color: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.4);
+  --accent-glow: rgba(99, 102, 241, 0.3);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --text-muted: #334155;
+  --text-muted: #475569;
   --glass-blur: 24px;
-  --liquid-glass: rgba(255, 255, 255, 0.03);
-  --transition-smooth: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-smooth: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
+  --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.5);
 }
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  cursor: none !important;
 }
 
 body {
@@ -39,49 +38,44 @@ body {
   display: none;
 }
 
-/* 탄력적 커서 (Elastic Cursor) */
-.custom-cursor {
-  width: 12px;
-  height: 12px;
-  background: white;
-  border-radius: 50%;
+/* 프리미엄 메쉬 배경 */
+.background-mesh {
   position: fixed;
-  pointer-events: none;
-  z-index: 99999;
-  mix-blend-mode: difference;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -2;
+  background-color: var(--bg-color);
+  overflow: hidden;
 }
 
-.cursor-text {
-  font-size: 6px;
-  font-weight: 800;
-  color: black;
-  opacity: 0;
-  transition: opacity 0.2s;
-  pointer-events: none;
-  white-space: nowrap;
-}
-
-.custom-cursor.hover {
-  width: 28px !important;
-  height: 28px !important;
-  background: white;
-}
-
-.custom-cursor.hover .cursor-text {
-  opacity: 0;
-}
-
-.cursor-follower {
-  width: 40px;
-  height: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+.mesh-blob {
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  filter: blur(80px);
+  opacity: 0.15;
   border-radius: 50%;
+  animation: meshFlow 25s infinite alternate;
+}
+
+.mesh-1 { background: #6366f1; top: -20%; left: -10%; animation-delay: 0s; }
+.mesh-2 { background: #8b5cf6; bottom: -20%; right: -10%; animation-delay: -5s; }
+.mesh-3 { background: #06b6d4; top: 40%; right: 10%; animation-delay: -10s; }
+
+@keyframes meshFlow {
+  0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  100% { transform: translate(10%, 15%) scale(1.1) rotate(45deg); }
+}
+
+.noise-overlay {
   position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
   pointer-events: none;
-  z-index: 99998;
 }
 
 /* 리퀴드 글래스(Liquid Glass) 스타일 */
@@ -578,38 +572,120 @@ header {
   opacity: 0.8;
 }
 
-/* 인기 필터 버튼 (붉은 빛) */
-.filter-item.filter-popular {
-  border-color: rgba(239, 68, 68, 0.4);
-}
-.filter-item.filter-popular:hover {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.6);
-  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
-}
-.filter-item.filter-popular.active {
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 
-    0 8px 25px rgba(239, 68, 68, 0.5),
-    inset 1px 1px 0 0 rgba(255, 255, 255, 0.2);
+/* Top 10 일직선 배치 (Straight Line UI) */
+.top-10-row {
+  display: flex;
+  overflow-x: auto;
+  gap: 1.5rem;
+  padding: 1.5rem 1rem 3rem;
+  margin-bottom: 2rem;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* 신규 필터 버튼 (노란 빛) */
-.filter-item.filter-new {
-  border-color: rgba(245, 158, 11, 0.4);
+.top-10-row::-webkit-scrollbar {
+  display: none;
 }
-.filter-item.filter-new:hover {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: rgba(245, 158, 11, 0.6);
-  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.3);
+
+.top-10-card {
+  flex: 0 0 300px;
+  scroll-snap-align: start;
+  padding: 1.8rem;
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  will-change: transform, box-shadow;
 }
-.filter-item.filter-new.active {
-  background: linear-gradient(135deg, #f59e0b, #b45309);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 
-    0 8px 25px rgba(245, 158, 11, 0.5),
-    inset 1px 1px 0 0 rgba(255, 255, 255, 0.2);
+
+.top-10-rank {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 32px;
+  height: 32px;
+  background: var(--accent-gradient);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: white;
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.top-10-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-12px) scale(1.02);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 
+              0 0 20px rgba(99, 102, 241, 0.2);
+}
+
+.top-10-card-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.top-10-icon {
+  width: 55px;
+  height: 55px;
+  border-radius: 18px;
+  object-fit: cover;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.top-10-btn-group {
+  display: flex;
+  gap: 0.8rem;
+  margin-top: auto;
+}
+
+.top-10-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.top-10-detail-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.top-10-detail-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.top-10-join-btn {
+  background: var(--accent-gradient);
+  color: white;
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.top-10-join-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px var(--accent-glow);
+  filter: brightness(1.1);
 }
 
 /* 서버 그리드 */
@@ -1891,4 +1967,4 @@ footer {
 /* IP 승인 오버레이 */
 #ip-approval-overlay .modal-box {
   animation: slideInScale 0.3s ease;
-}
+}

@@ -901,54 +901,60 @@ function renderServers() {
     `;
   }
 
-  // 오늘의 인기 서버 Top 5 섹션 (첫 페이지에서만 표시)
+  // [Premium Remake] 실시간 인기 로샵 Top 10 섹션 (첫 페이지에서만 표시)
   let topServersHTML = '';
   if (currentPage === 1) {
     const topServers = getTopServersToday();
     if (topServers.length > 0) {
-      const topFive = topServers.slice(0, 5);
+      const topTen = topServers.slice(0, 10);
       topServersHTML = `
-        <div class="top-servers-section" style="grid-column: 1 / -1; margin-bottom: 3rem;">
-          <h2 style="font-size: 1.8rem; margin-bottom: 1.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-            🔥 실시간 인기 <span class="brand-highlight">로샵</span> Top 5
-          </h2>
-          <div class="top-servers-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.2rem; margin-bottom: 1.5rem;">
-            ${topFive.map((server, idx) => `
-              <div class="top-server-card glass stagger-reveal" data-id="${server.id}" style="position: relative; padding: 1.2rem; animation-delay: ${idx * 0.1}s;">
-                <div style="position: absolute; top: -8px; right: 1rem; background: linear-gradient(135deg, #fa8231, #f97316); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1rem; box-shadow: 0 4px 15px rgba(250, 130, 49, 0.4); z-index: 10;">
-                  ${idx + 1}
-                </div>
-                <div style="display: flex; gap: 0.75rem; margin-bottom: 0.8rem;">
-                  <img src="${escapeHtml(server.icon)}" alt="${escapeHtml(server.name)}" style="width: 45px; height: 45px; border-radius: 8px; object-fit: cover;" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
-                  <div style="flex: 1; min-width: 0;">
-                    <h4 style="margin: 0; font-size: 0.95rem; font-weight: bold; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(server.name)}</h4>
-                    <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(server.category)}</p>
+        <div class="top-servers-section" style="grid-column: 1 / -1; margin-bottom: 4.5rem; position: relative;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.8rem; padding: 0 1rem;">
+            <div>
+              <h2 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.8rem;">
+                🏆 실시간 인기 <span class="brand-highlight">Top 10</span>
+              </h2>
+              <p style="margin: 0; font-size: 0.9rem; color: var(--text-secondary);">지금 가장 주목받고 있는 프리미엄 로샵 리스트</p>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--accent-gradient); font-weight: 600; opacity: 0.8;">
+              가로로 밀어서 더보기 ➔
+            </div>
+          </div>
+
+          <div class="top-10-row">
+            ${topTen.map((server, idx) => {
+              const safeName = escapeHtml(server.name);
+              const safeIcon = escapeHtml(server.icon);
+              const safeDesc = escapeHtml(server.description);
+              
+              return `
+              <div class="top-10-card stagger-reveal" style="animation-delay: ${idx * 0.08}s;">
+                <div class="top-10-rank">${idx + 1}</div>
+                
+                <div class="top-10-card-header">
+                  <img src="${safeIcon}" alt="${safeName}" class="top-10-icon" loading="lazy" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
+                  <div style="min-width: 0; flex: 1;">
+                    <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${safeName}</h4>
+                    <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--accent-color); font-weight: 600;">👍 ${(server.recommendations || 0).toLocaleString()} 추천</p>
                   </div>
                 </div>
-                <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.8rem 0; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(server.description)}</p>
-                <div style="display: flex; gap: 0.4rem; margin-bottom: 0.8rem; flex-wrap: wrap;">
-                  ${getServerTags(server).slice(0, 5).map((tag: string) => {
-                    const tagConfig = [...config.serverTags, ...config.adminOnlyTags].find((t: any) => t.value === tag);
-                    const isNewTag = tag === '신규';
-                    return `<span class="server-tag${isNewTag ? ' server-tag-new' : ''}" style="background: ${tagConfig?.bgColor || 'rgba(255,255,255,0.05)'}; color: ${tagConfig?.color || 'var(--text-secondary)'}; padding: 3px 9px; font-size: 0.73rem;">${tagConfig?.emoji || ''} ${escapeHtml(tag)}</span>`;
-                  }).join('')}
+
+                <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.5rem;">
+                  ${safeDesc}
+                </p>
+
+                <div class="top-10-btn-group">
+                  <button class="top-10-btn top-10-detail-btn" onclick="openDetailModal(${server.id})">
+                    🔍 자세히 보기
+                  </button>
+                  <button class="top-10-btn top-10-join-btn" onclick="window.open('${escapeHtml(server.inviteLink)}', '_blank', 'noopener,noreferrer')">
+                    🚀 서버 참가하기
+                  </button>
                 </div>
-                <div style="display: flex; gap: 1rem; font-size: 0.8rem; margin-bottom: 1rem; padding: 0.6rem; background: rgba(99, 102, 241, 0.05); border-radius: 0.5rem;">
-                  <span style="flex: 1; text-align: center; color: #fa8231;">👍 ${server.recommendations || 0}</span>
-                  <span style="border-left: 1px solid var(--text-secondary, rgba(255,255,255,0.1));"></span>
-                  <span style="flex: 1; text-align: center; color: var(--text-secondary);">👁️ ${server.clicks || 0}</span>
-                </div>
-                <button class="recommend-icon-btn" data-id="${server.id}" style="width: 100%; padding: 0.6rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border: none; border-radius: 0.5rem; cursor: pointer; font-weight: bold; font-size: 0.85rem; transition: all 0.3s ease; text-align: center;">
-                  👍 추천
-                </button>
               </div>
-            `).join('')}
+              `;
+            }).join('')}
           </div>
-          ${topServers.length > 5 ? `
-            <button id="show-top-all-btn" style="width: 100%; padding: 0.8rem; background: transparent; border: 2px solid var(--accent-color, #6366f1); color: var(--accent-color, #6366f1); border-radius: 0.5rem; cursor: pointer; font-weight: bold; font-size: 0.95rem; transition: all 0.3s ease;">
-              더보기 (${topServers.length - 5}개 더)
-            </button>
-          ` : ''}
         </div>
       `;
     }
@@ -959,7 +965,7 @@ function renderServers() {
     const isNew = isNewServer(server);
     return `
     <div class="server-card glass${isNew ? ' server-card-new' : ''}" data-id="${server.id}" style="animation-delay: ${(currentPage === 1 ? 0.5 : 0) + (idx * 0.05)}s;">
-      ${isNew ? '<div class="new-badge-ribbon">🆕 신규</div>' : ''}
+      ${isNew ? '<div class="new-badge-ribbon">⭐ 신규</div>' : ''}
       <div class="server-header">
         <img src="${escapeHtml(server.icon)}" class="server-icon loading" alt="${escapeHtml(server.name)}" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}'; this.classList.remove('loading');" onload="this.classList.remove('loading');">
         <div class="server-info">
@@ -1029,8 +1035,7 @@ function renderServers() {
       });
     });
 
-    // 자동 슬라이드 5초마다
-    setInterval(() => nextSlide(), 5000);
+    // 배너 10초마다 자동 스크롤은 init()에서 한 번만 설정합니다.
   }
 
   if (promoBtnsCarousel.length > 0) {
@@ -1040,6 +1045,21 @@ function renderServers() {
   }
 
   renderPagination();
+
+  // 가로 마우스 휠 스크롤 추가 (부드러운 경험을 위한 최적화)
+  const top10Row = grid.querySelector('.top-10-row');
+  if (top10Row) {
+    top10Row.addEventListener('wheel', ((e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        e.preventDefault();
+        // 부드러운 스크롤을 위해 감도 조절 및 scrollBy 활용
+        top10Row.scrollBy({
+          left: e.deltaY * 1.5,
+          behavior: 'auto' // CSS에서 smooth를 처리하므로 여기서는 auto로 넘김
+        });
+      }
+    }) as EventListener, { passive: false });
+  }
 }
 
 // 홍보 배너 열기
@@ -1816,6 +1836,8 @@ function renderAdminQA() {
           </div>
         `).join('')}
       </div>
+    </div>
+    
     </div>
     
     <div>
@@ -2879,64 +2901,6 @@ function setupEventListeners() {
   };
 }
 
-// 탄력적 커서 로직
-function initCursor() {
-  const cursor = document.querySelector<HTMLDivElement>('.custom-cursor')!;
-  const follower = document.querySelector<HTMLDivElement>('.cursor-follower')!;
-  if (!cursor || !follower) return;
-  
-  cursor.innerHTML = '<span class="cursor-text">GO</span>';
-
-  let mouseX = 0, mouseY = 0;
-  let cursorX = 0, cursorY = 0;
-  let followerX = 0, followerY = 0;
-  let speedX = 0, speedY = 0;
-
-  window.addEventListener('mousemove', (e) => {
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-  });
-
-  function animate() {
-    const prevX = cursorX;
-    const prevY = cursorY;
-
-    cursorX += (mouseX - cursorX) * 0.15;
-    cursorY += (mouseY - cursorY) * 0.15;
-    followerX += (mouseX - followerX) * 0.08;
-    followerY += (mouseY - followerY) * 0.08;
-
-    speedX = cursorX - prevX;
-    speedY = cursorY - prevY;
-    const angle = Math.atan2(speedY, speedX) * 180 / Math.PI;
-    const stretch = Math.min(Math.sqrt(speedX * speedX + speedY * speedY) * 0.1, 1);
-
-    cursor.style.left = `${cursorX}px`;
-    cursor.style.top = `${cursorY}px`;
-    cursor.style.transform = `translate(-50%, -50%) rotate(${angle}deg) scale(${1 + stretch}, ${1 - stretch * 0.5})`;
-
-    follower.style.left = `${followerX}px`;
-    follower.style.top = `${followerY}px`;
-    follower.style.transform = `translate(-50%, -50%)`;
-
-    requestAnimationFrame(animate);
-  }
-  animate();
-
-  document.addEventListener('mouseover', (e) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'BUTTON' || target.tagName === 'A' || target.closest('.server-card')) {
-      cursor.classList.add('hover');
-    }
-  });
-
-  document.addEventListener('mouseout', (e) => {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'BUTTON' || target.tagName === 'A' || target.closest('.server-card')) {
-      cursor.classList.remove('hover');
-    }
-  });
-}
 
 
 // 관리자 웹후크 자동 동작 처리
@@ -3000,6 +2964,17 @@ async function handleAdminAutoAction() {
 }
 
 async function init() {
+  // 0. 프리미엄 배경 주입
+  const bg = document.createElement('div');
+  bg.className = 'background-mesh';
+  bg.innerHTML = `
+    <div class="mesh-blob mesh-1"></div>
+    <div class="mesh-blob mesh-2"></div>
+    <div class="mesh-blob mesh-3"></div>
+    <div class="noise-overlay"></div>
+  `;
+  document.body.prepend(bg);
+
   // IP 승인 URL 콜백 처리 (?approve_ip=IP&token=TOKEN)
   if (handleIPApprovalCallback()) {
     showToast('✅ IP 승인 완료! 디스코드 인증을 진행해주세요.', 'success');
@@ -3066,8 +3041,8 @@ async function init() {
       </section>
 
       <div class="section-title-wrap">
-        <h2 class="section-title">✨ 지금 핫한 <span class="brand-highlight">로샵</span></h2>
-        <span class="section-subtitle">실시간 추천수가 높은 검증된 샵들입니다.</span>
+        <h2 class="section-title">🤝 로폴더 <span class="brand-highlight">파트너 서버</span></h2>
+        <span class="section-subtitle">다양한 카테고리의 샵들을 둘러보세요.</span>
       </div>
 
       <div id="filter-bar" class="filter-bar glass"></div>
@@ -3078,24 +3053,28 @@ async function init() {
     </main>
   `;
 
-  renderFilters();
   renderServers();
   renderFooter();
   
-  // 1. 이벤트 리스너 등록 (UI 생기자마자 최우선 실행)
+  // 1. 이벤트 리스너 등록
   setupEventListeners();
   
-  // 2. 나머지 초기화 (비동기 병렬 처리로 지연 최소화)
-  initCursor();
+  // 2. 나머지 초기화
   logUserActivity('페이지 방문');
   startRealTimePolling();
   
-  // 3. 관리자 자동 동작 (실패해도 초기화는 유지)
+  // 3. 관리자 자동 동작
   try {
     await handleAdminAutoAction();
   } catch (e) {
     console.error('관리자 자동 동작 처리 중 오류:', e);
   }
+
+  // 배너 10초마다 자동 스크롤 (중복 생성 방지를 위해 init에서 단 한 번만 설정)
+  setInterval(() => {
+    const carousel = document.querySelector('.banner-carousel');
+    if (carousel) nextSlide();
+  }, 10000);
 }
 
 // 관리자 대시보드가 열려있다면 내용 갱신
@@ -3126,7 +3105,7 @@ document.addEventListener('DOMContentLoaded', () => {
       refreshAdminDashboardIfOpen();
       console.log('✅ [Heartbeat] 데이터 자동 동기화 완료');
     }
-  }, 10000); // 10초
+  }, 60000); // 60초 (사용자 피드백: 폴링 주기 완화)
 });
 
 // ---------------------------------------------------------
