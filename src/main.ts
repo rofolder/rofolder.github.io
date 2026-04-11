@@ -909,12 +909,63 @@ function renderServers() {
     `;
   }
 
-  // [Premium Remake] 실시간 인기 로샵 Top 10 섹션 (첫 페이지에서만 표시)
+  // [Premium Remake] 실시간 인기 로샵 Top 10 섹션 & 파트너 섹션 (첫 페이지에서만 표시)
+  let partnerServersHTML = '';
   let topServersHTML = '';
+  
   if (currentPage === 1) {
-    const topServers = getTopServersToday();
-    if (topServers.length > 0) {
-      const topTen = topServers.slice(0, 10);
+    const allApproved = servers.filter(s => s.status === 'approved');
+    const partners = allApproved.filter(s => s.isPartner).sort((a, b) => (b.recommendations || 0) - (a.recommendations || 0));
+    const topTen = getTopServersToday().filter(s => !s.isPartner).slice(0, 10); // 파트너 제외한 순수 인기 탑 10
+
+    if (partners.length > 0) {
+      partnerServersHTML = `
+        <div class="top-servers-section" style="grid-column: 1 / -1; margin-bottom: 3rem; position: relative;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.8rem; padding: 0 1rem;">
+            <div>
+              <h2 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.8rem;">
+                🤝 로폴더 <span style="background: linear-gradient(135deg, #fbbf24, #f59e0b); -webkit-background-clip: text; color: transparent;">공식 파트너</span>
+              </h2>
+              <p style="margin: 0; font-size: 0.9rem; color: var(--text-secondary);">로폴더가 보증하는 최고의 프리미엄 커뮤니티</p>
+            </div>
+            <div style="font-size: 0.85rem; color: #fbbf24; font-weight: 600; opacity: 0.8;">
+              가로로 밀어서 더보기 ➔
+            </div>
+          </div>
+          <div class="top-10-row">
+            ${partners.map((server, idx) => {
+              const safeName = escapeHtml(server.name);
+              const safeIcon = escapeHtml(server.icon);
+              const safeDesc = escapeHtml(server.description);
+              
+              return `
+              <div class="top-10-card stagger-reveal" style="animation-delay: ${idx * 0.08}s; border: 1px solid rgba(251, 191, 36, 0.3); background: var(--card-bg);">
+                <div class="top-10-card-header">
+                  <img src="${safeIcon}" alt="${safeName}" class="top-10-icon" loading="lazy" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
+                  <div style="min-width: 0; flex: 1;">
+                    <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.4rem;">
+                      ${safeName}
+                      <span style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; flex-shrink: 0;">PARTNER</span>
+                    </h4>
+                    <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--accent-color); font-weight: 600;">👍 ${(server.recommendations || 0).toLocaleString()} 추천</p>
+                  </div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.5rem;">
+                  ${safeDesc}
+                </p>
+                <div class="top-10-btn-group">
+                  <button class="top-10-btn top-10-detail-btn" onclick="openDetailModal(${server.id})">🔍 자세히 보기</button>
+                  <button class="top-10-btn top-10-join-btn" style="background: linear-gradient(135deg, #fbbf24, #f59e0b);" onclick="window.open('${escapeHtml(server.inviteLink)}', '_blank', 'noopener,noreferrer')">🚀 서버 참가하기</button>
+                </div>
+              </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    if (topTen.length > 0) {
       topServersHTML = `
         <div class="top-servers-section" style="grid-column: 1 / -1; margin-bottom: 4.5rem; position: relative;">
           <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.8rem; padding: 0 1rem;">
@@ -922,7 +973,7 @@ function renderServers() {
               <h2 style="font-size: 1.6rem; font-weight: 800; margin-bottom: 0.5rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.8rem;">
                 🏆 실시간 인기 <span class="brand-highlight">Top 10</span>
               </h2>
-              <p style="margin: 0; font-size: 0.9rem; color: var(--text-secondary);">지금 가장 주목받고 있는 프리미엄 로샵 리스트</p>
+              <p style="margin: 0; font-size: 0.9rem; color: var(--text-secondary);">지금 가장 주목받고 있는 일반 로샵 리스트</p>
             </div>
             <div style="font-size: 0.85rem; color: var(--accent-gradient); font-weight: 600; opacity: 0.8;">
               가로로 밀어서 더보기 ➔
@@ -938,22 +989,18 @@ function renderServers() {
               return `
               <div class="top-10-card stagger-reveal" style="animation-delay: ${idx * 0.08}s;">
                 <div class="top-10-rank">${idx + 1}</div>
-                
                 <div class="top-10-card-header">
                   <img src="${safeIcon}" alt="${safeName}" class="top-10-icon" loading="lazy" onerror="this.src='https://api.dicebear.com/7.x/identicon/svg?seed=${server.id}';">
                   <div style="min-width: 0; flex: 1;">
                     <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 0.4rem;">
                       ${safeName}
-                      ${server.isPartner ? `<span style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1a1a2e; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 800; flex-shrink: 0;">PARTNER</span>` : ''}
                     </h4>
                     <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: var(--accent-color); font-weight: 600;">👍 ${(server.recommendations || 0).toLocaleString()} 추천</p>
                   </div>
                 </div>
-
                 <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.5rem;">
                   ${safeDesc}
                 </p>
-
                 <div class="top-10-btn-group">
                   <button class="top-10-btn top-10-detail-btn" onclick="openDetailModal(${server.id})">
                     🔍 자세히 보기
@@ -971,7 +1018,7 @@ function renderServers() {
     }
   }
 
-  grid.innerHTML = carouselHTML + topServersHTML + pagedServers.map((server, idx) => {
+  grid.innerHTML = carouselHTML + partnerServersHTML + topServersHTML + pagedServers.map((server, idx) => {
     const dynamicTags = getServerTags(server);
     const isNew = isNewServer(server);
     return `

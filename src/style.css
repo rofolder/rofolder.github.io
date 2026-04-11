@@ -20,19 +20,19 @@
 
 /* ── 아이보리 (Ivory) ── */
 [data-theme="ivory"] {
-  --bg-color: #faf8f5;
-  --card-bg: rgba(255, 255, 255, 0.7);
+  --bg-color: #f7f5f0;
+  --card-bg: rgba(255, 255, 255, 0.85);
   --card-border: rgba(0, 0, 0, 0.08);
-  --accent-color: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.2);
-  --text-primary: #1a1a2e;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
+  --accent-color: #8c6e46;
+  --accent-glow: rgba(140, 110, 70, 0.2);
+  --text-primary: #151515;
+  --text-secondary: #4a4a4a;
+  --text-muted: #808080;
+  --accent-gradient: linear-gradient(135deg, #8c6e46, #b08d5c);
   --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.1);
-  --mesh-1: rgba(99, 102, 241, 0.08);
-  --mesh-2: rgba(139, 92, 246, 0.06);
-  --mesh-3: rgba(236, 72, 153, 0.05);
+  --mesh-1: rgba(140, 110, 70, 0.08);
+  --mesh-2: rgba(176, 141, 92, 0.06);
+  --mesh-3: rgba(200, 170, 120, 0.05);
 }
 
 /* ── 미드나잇 (Midnight) — 순수 B&W ── */
@@ -105,19 +105,19 @@
 
 /* ── 세이지 (Sage) — 밝은 그린 ── */
 [data-theme="sage"] {
-  --bg-color: #f5f0eb;
-  --card-bg: rgba(255, 255, 255, 0.6);
-  --card-border: rgba(107, 143, 107, 0.15);
-  --accent-color: #6b8f6b;
-  --accent-glow: rgba(107, 143, 107, 0.2);
-  --text-primary: #2d3a2d;
-  --text-secondary: #5a6e5a;
-  --text-muted: #8a9a8a;
-  --accent-gradient: linear-gradient(135deg, #6b8f6b, #4a6e4a);
+  --bg-color: #eef2ed;
+  --card-bg: rgba(255, 255, 255, 0.85);
+  --card-border: rgba(61, 92, 61, 0.15);
+  --accent-color: #3d5c3d;
+  --accent-glow: rgba(61, 92, 61, 0.2);
+  --text-primary: #141c14;
+  --text-secondary: #3b4d3b;
+  --text-muted: #708a70;
+  --accent-gradient: linear-gradient(135deg, #3d5c3d, #5d8f5d);
   --glass-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.08);
-  --mesh-1: rgba(107, 143, 107, 0.06);
-  --mesh-2: rgba(74, 110, 74, 0.05);
-  --mesh-3: rgba(139, 174, 139, 0.04);
+  --mesh-1: rgba(61, 92, 61, 0.06);
+  --mesh-2: rgba(93, 143, 93, 0.05);
+  --mesh-3: rgba(144, 189, 144, 0.04);
 }
 
 * {
@@ -185,8 +185,10 @@ body {
 
 /* ── 테마 토글 패널 ── */
 .theme-toggle-wrapper {
-  position: relative;
-  z-index: 100;
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 9999;
 }
 
 .theme-toggle-btn {
@@ -214,8 +216,8 @@ body {
 
 .theme-panel {
   position: absolute;
-  top: calc(100% + 12px);
-  left: 0;
+  bottom: calc(100% + 12px);
+  right: 0;
   width: 260px;
   background: var(--card-bg);
   backdrop-filter: blur(32px) saturate(180%);
@@ -226,7 +228,7 @@ body {
   box-shadow: var(--glass-shadow);
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-8px) scale(0.96);
+  transform: translateY(8px) scale(0.96);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 1000;
 }
