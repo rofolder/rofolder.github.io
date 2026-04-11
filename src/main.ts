@@ -917,8 +917,8 @@ function renderServers() {
   
   if (currentPage === 1) {
     const allApproved = servers.filter(s => s.status === 'approved');
-    const partners = allApproved.filter(s => s.isPartner).sort((a, b) => (b.recommendations || 0) - (a.recommendations || 0));
-    const topTen = getTopServersToday().filter(s => !s.isPartner).slice(0, 10); // 파트너 제외한 순수 인기 탑 10
+    const partners = allApproved.filter(s => s.isPartner || (s.tags && s.tags.includes('파트너'))).sort((a, b) => (b.recommendations || 0) - (a.recommendations || 0));
+    const topTen = getTopServersToday().filter(s => !s.isPartner && !(s.tags && s.tags.includes('파트너'))).slice(0, 10); // 파트너 제외한 순수 인기 탑 10
 
     if (partners.length > 0) {
       partnerServersHTML = `
@@ -1941,8 +1941,8 @@ function renderAllServers() {
 // 🤝 파트너 서버 관리 탭
 function renderPartnerTab() {
   const container = document.getElementById('admin-servers-container')!;
-  const partnerServers = servers.filter(s => s.isPartner === true && s.status === 'approved');
-  const availableServers = servers.filter(s => s.status === 'approved' && !s.isPartner);
+  const partnerServers = servers.filter(s => s.status === 'approved' && (s.isPartner === true || (s.tags && s.tags.includes('파트너'))));
+  const availableServers = servers.filter(s => s.status === 'approved' && !(s.isPartner === true || (s.tags && s.tags.includes('파트너'))));
 
   container.innerHTML = `
     <div style="margin-bottom: 2rem;">
