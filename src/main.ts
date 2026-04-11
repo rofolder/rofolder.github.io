@@ -168,7 +168,8 @@ function loadServersFromLocal(): DiscordServer[] {
             inviteLink: s.inviteLink || s.invite_link || '',
             status: s.status || 'pending',
             recommendations: s.recommendations || 0,
-            clicks: s.clicks || 0
+            clicks: s.clicks || 0,
+            isPartner: s.isPartner || s.is_partner || false
           };
           
           if (!foundServers.some(fs => fs.name === normalized.name)) {
@@ -1257,7 +1258,7 @@ function openPromoBanner() {
 
     if (recentAttempts.length >= 5) {
       // 사이트를 보호 모드(로딩 UI)로 강제 덮어쓰기
-      document.body.innerHTML = \`
+      document.body.innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:white;text-align:center;">
            <div style="font-size:4rem;margin-bottom:1rem;">🚨</div>
            <h2 style="color:#ef4444;margin-bottom:1rem;font-size:2rem;">비정상적인 활동 감지</h2>
@@ -1265,11 +1266,11 @@ function openPromoBanner() {
            <div style="border:4px solid rgba(255,255,255,0.1); border-left-color: #ef4444; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
            <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
         </div>
-      \`;
+      `;
       
       // 관리자 멘션 긴급 웹훅 발송
       sendWebhook({
-        content: \`🚨 <@\${config.adminDiscordId}> **[긴급 보안 경보]** 비정상적인 다중 서버 등록 요청(도배)이 감지되어 클라이언트가 차단되었습니다!\`
+        content: `🚨 <@${config.adminDiscordId}> **[긴급 보안 경보]** 비정상적인 다중 서버 등록 요청(도배)이 감지되어 클라이언트가 차단되었습니다!`
       });
       return;
     }
@@ -1780,6 +1781,7 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
         saveServers();
         await syncServerToDB(server); // SQL에 자동 입력되게
         renderAdminServersByStatus('approved');
+        renderServers(); // 메인 페이지 동기화
         const actionStr = server.isPartner ? '지정' : '해제';
         showToast(`🤝 파트너로 ${actionStr}되었습니다. (SQL 동기화 완료)`, 'success');
       }
@@ -2004,6 +2006,7 @@ function renderPartnerTab() {
         await syncServerToDB(server);
         showToast(`🤝 "${server.name}"이(가) 파트너로 지정되었습니다!`, 'success');
         renderPartnerTab();
+        renderServers(); // 메인 페이지 동기화
       }
     });
   });
@@ -2020,6 +2023,7 @@ function renderPartnerTab() {
         await syncServerToDB(server);
         showToast(`❌ "${server.name}" 파트너가 해제되었습니다.`, 'info');
         renderPartnerTab();
+        renderServers(); // 메인 페이지 동기화
       }
     });
   });
@@ -2482,6 +2486,7 @@ function editServer(id: number) {
     // 관리자 대시보드 새로고침
     const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'approved';
     renderAdminServersByStatus(currentTab);
+    renderServers(); // 메인 페이지 동기화
   };
 }
 
@@ -2517,6 +2522,7 @@ async function deleteServer(id: number) {
   const currentTab = document.querySelector('.admin-tab-btn.active')?.getAttribute('data-tab') as 'pending' | 'approved' | 'rejected' || 'approved';
   renderAdminServersByStatus(currentTab);
   updateAdminTabBadges();
+  renderServers(); // 메인 페이지 동기화
 }
 
 // 서버 상태 변경
@@ -2542,6 +2548,7 @@ function updateServerStatus(id: number, newStatus: 'pending' | 'approved' | 'rej
   
   alert('✅ 서버 상태가 변경되었습니다.');
   updateAdminTabBadges();
+  renderServers(); // 메인 페이지 동기화
 }
 
 // Approved 서버들을 JSON 형식으로 내보내기 (DevTools용)
