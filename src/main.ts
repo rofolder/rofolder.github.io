@@ -1133,16 +1133,16 @@ function openPromoBanner() {
     <button class="modal-close" id="close-promo-modal">&times;</button>
     <h2 style="margin-bottom: 2.5rem; font-size: 1.8rem;">🚀 로샵 등록 신청</h2>
     <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 1.05rem;">
-      당신의 프리미엄 로샵을 RoFolder에 등록하고 더 많은 유저와 연결되세요!
+      당신의 로샵을 RoFolder에 등록하고 더 많은 유저와 연결되세요!
     </p>
     <form id="promo-form" class="register-form">
       <div class="form-group">
-        <label>서버/커뮤니티 아이콘 (선택)</label>
+        <label>서버/커뮤니티 아이콘 *</label>
         <div style="display: flex; gap: 1rem;">
           <div class="image-preview-container">
             <img id="promo-preview" src="https://api.dicebear.com/7.x/identicon/svg?seed=new" alt="미리보기">
           </div>
-          <input type="file" id="promo-icon-upload" accept=".png,.svg,.webp,image/png,image/svg+xml,image/webp" class="form-input" style="flex: 1;">
+          <input type="file" id="promo-icon-upload" accept=".png,.svg,.webp,image/png,image/svg+xml,image/webp" class="form-input" style="flex: 1;" required>
         </div>
       </div>
       <div class="form-group">
