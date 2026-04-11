@@ -1244,6 +1244,45 @@ function openPromoBanner() {
 
     // 선택된 카테고리 배열
     const selectedCategories = catInput.split(',').filter(c => c.length > 0);
+
+    // 비정상 활동/도배 감지 로직 (로컬 기준 최근 1분간 5회 이상 등록 시도 시 락다운)
+    const nowMs = Date.now();
+    const recentAttemptsStr = localStorage.getItem('abnormal_reg_attempts') || '[]';
+    let recentAttempts: number[] = [];
+    try { recentAttempts = JSON.parse(recentAttemptsStr); } catch(e){}
+    
+    recentAttempts = recentAttempts.filter(time => nowMs - time < 60000); // 1분 유지
+    recentAttempts.push(nowMs);
+    localStorage.setItem('abnormal_reg_attempts', JSON.stringify(recentAttempts));
+
+    if (recentAttempts.length >= 5) {
+      // 사이트를 보호 모드(로딩 UI)로 강제 덮어쓰기
+      document.body.innerHTML = \`
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:white;text-align:center;">
+           <div style="font-size:4rem;margin-bottom:1rem;">🚨</div>
+           <h2 style="color:#ef4444;margin-bottom:1rem;font-size:2rem;">비정상적인 활동 감지</h2>
+           <p style="color:#94a3b8;margin-bottom:2rem;line-height:1.6;font-size:1.1rem;">짧은 시간 내에 너무 많은 등록 요청이 발생하였습니다.<br>보안을 위해 사이트가 보호 모드로 전환되었습니다.</p>
+           <div style="border:4px solid rgba(255,255,255,0.1); border-left-color: #ef4444; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+           <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
+        </div>
+      \`;
+      
+      // 관리자 멘션 긴급 웹훅 발송
+      sendWebhook({
+        content: \`🚨 <@\${config.adminDiscordId}> **[긴급 보안 경보]** 비정상적인 다중 서버 등록 요청(도배)이 감지되어 클라이언트가 차단되었습니다!\`
+      });
+      return;
+    }
+
+    // 중복 서버 방지 (이름 또는 링크가 같고, 상태가 거절이 아닌 경우)
+    const isDuplicate = servers.some(s => 
+      (s.status === 'pending' || s.status === 'approved') && 
+      (s.name.toLowerCase() === nameInput.toLowerCase() || s.inviteLink.toLowerCase() === linkInput.toLowerCase())
+    );
+    if (isDuplicate) {
+      alert('❌ 이미 등록되어 있거나 관리자 승인 대기 중인 서버입니다.');
+      return;
+    }
     
     // 입력 검증
     const validation = validateServerData({
