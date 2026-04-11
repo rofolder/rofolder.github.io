@@ -44,16 +44,6 @@ import {
 const STORAGE_KEY = 'rofolder_servers_v2'; // 버전을 올려서 충돌 방지
 const JSON_DATA_URL = '/servers.json';
 
-function escapeHtml(unsafe: string): string {
-  if (!unsafe) return '';
-  return String(unsafe)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
 let serverSubscription: any = null;
 
 async function loadServersFromJSON(): Promise<DiscordServer[]> {
@@ -3517,3 +3507,10 @@ async function handleOAuthCallback() {
   if (document.readyState === 'complete') checkUrl();
   else window.addEventListener('load', checkUrl);
 })();
+
+// 글로벌 이벤트 노출 (Vite 모듈에서 인라인 이벤트 작동을 위함)
+Object.assign(window, {
+  openDetailModal,
+  editServer,
+  closeAdminModal: () => document.getElementById('admin-modal-container')?.classList.add('hidden')
+});
