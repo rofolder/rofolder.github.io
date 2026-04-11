@@ -3325,7 +3325,7 @@ async function init() {
       </section>
 
       <div class="section-title-wrap">
-        <h2 class="section-title">🤝 로폴더 <span class="brand-highlight">파트너 서버</span></h2>
+        <h2 class="section-title">🌐 전체 <span class="brand-highlight">로샵 탐색</span></h2>
         <span class="section-subtitle">다양한 카테고리의 샵들을 둘러보세요.</span>
       </div>
 
