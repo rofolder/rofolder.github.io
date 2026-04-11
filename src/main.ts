@@ -2404,6 +2404,9 @@ function editServer(id: number) {
     
     server.tags = [...new Set([...otherTags, ...selectedCategoryTags, ...adminTags])];
 
+    // 파트너 상태 명시적 동기화
+    server.isPartner = adminTags.includes('파트너');
+
     saveServers();
     await syncServerToDB(server); // DB 동기화
     alert('✅ 서버 정보가 수정되었습니다.');
