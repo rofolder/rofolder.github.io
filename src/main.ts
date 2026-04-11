@@ -1958,6 +1958,9 @@ function renderPartnerTab() {
       const server = servers.find(s => s.id === id);
       if (server) {
         server.isPartner = true;
+        if (!server.tags.includes('파트너')) {
+          server.tags.push('파트너');
+        }
         saveServers();
         await syncServerToDB(server);
         showToast(`🤝 "${server.name}"이(가) 파트너로 지정되었습니다!`, 'success');
@@ -1973,6 +1976,7 @@ function renderPartnerTab() {
       const server = servers.find(s => s.id === id);
       if (server) {
         server.isPartner = false;
+        server.tags = server.tags.filter(t => t !== '파트너');
         saveServers();
         await syncServerToDB(server);
         showToast(`❌ "${server.name}" 파트너가 해제되었습니다.`, 'info');
