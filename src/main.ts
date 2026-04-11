@@ -1713,6 +1713,7 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
           <button class="submit-button edit-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #3b82f6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✏️ 수정</button>
           <button class="submit-button reject-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">❌ 거절</button>
         ` : status === 'approved' ? `
+          <button class="submit-button toggle-partner-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: ${server.isPartner ? '#6b7280' : 'linear-gradient(135deg, #fbbf24, #f59e0b)'}; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">${server.isPartner ? '🤝 파트너 해제' : '🤝 파트너 지정'}</button>
           <button class="submit-button edit-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #3b82f6; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">✏️ 수정</button>
           <button class="submit-button reject-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #f59e0b; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">⬇️ 거절</button>
           <button class="submit-button delete-btn" data-id="${server.id}" style="flex: 1; min-width: 100px; background: #ef4444; padding: 0.75rem; border: none; border-radius: 0.5rem; color: white; cursor: pointer; font-weight: bold; height: 44px;">🗑️ 삭제</button>
@@ -1726,6 +1727,26 @@ function renderAdminServersByStatus(status: 'pending' | 'approved' | 'rejected')
   `).join('');
 
   // 이벤트 리스너 등록
+  container.querySelectorAll('.toggle-partner-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
+      const server = servers.find(s => s.id === id);
+      if (server) {
+        server.isPartner = !server.isPartner;
+        if (server.isPartner && !server.tags.includes('파트너')) {
+          server.tags.push('파트너');
+        } else if (!server.isPartner) {
+          server.tags = server.tags.filter(t => t !== '파트너');
+        }
+        saveServers();
+        await syncServerToDB(server); // SQL에 자동 입력되게
+        renderAdminServersByStatus('approved');
+        const actionStr = server.isPartner ? '지정' : '해제';
+        showToast(`🤝 파트너로 ${actionStr}되었습니다. (SQL 동기화 완료)`, 'success');
+      }
+    });
+  });
+
   container.querySelectorAll('.approve-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const id = parseInt((e.currentTarget as HTMLButtonElement).dataset.id!);
