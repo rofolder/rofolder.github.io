@@ -3337,6 +3337,7 @@ async function init() {
     </main>
   `;
 
+  renderFilters();
   renderServers();
   renderFooter();
 
