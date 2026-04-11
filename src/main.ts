@@ -44,6 +44,16 @@ import {
 const STORAGE_KEY = 'rofolder_servers_v2'; // 버전을 올려서 충돌 방지
 const JSON_DATA_URL = '/servers.json';
 
+function escapeHtml(unsafe: string): string {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 let serverSubscription: any = null;
 
 async function loadServersFromJSON(): Promise<DiscordServer[]> {
@@ -85,7 +95,8 @@ async function loadServersFromDB(): Promise<DiscordServer[]> {
       approvedAt: s.approved_at ? new Date(s.approved_at).getTime() : undefined,
       rejectionReason: s.rejection_reason,
       recommendations: s.recommendations || 0,
-      clicks: s.clicks || 0
+      clicks: s.clicks || 0,
+      isPartner: s.is_partner || false
     }));
   } catch (e) {
     console.error('Supabase 데이터 로드 실패:', e);
